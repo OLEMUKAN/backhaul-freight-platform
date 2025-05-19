@@ -1,0 +1,43 @@
+## .NET Core
+bin/
+obj/
+/bin
+/obj
+*.user
+*.suo
+
+## Visual Studio files
+.vs/
+*.userprefs
+*.usertasks
+*.user
+*.vscode
+.vscode/
+
+## Logs
+logs/
+*.log
+npm-debug.log*
+
+## Runtime data
+*.dll
+*.exe
+*.pdb
+
+## Dependencies that should be installed via NuGet
+packages/
+
+## Configuration files that may contain sensitive information
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+
+## Ignore local SSL certs
+*.pfx
+*.key
+*.crt
+
+## Misc
+node_modules/
+.DS_Store
+Thumbs.db 

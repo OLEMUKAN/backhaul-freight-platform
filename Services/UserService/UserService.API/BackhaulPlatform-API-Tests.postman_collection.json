@@ -1,0 +1,338 @@
+{
+  "info": {
+    "_postman_id": "c1d2e3f4-5678-90ab-cdef-123456789012",
+    "name": "Backhaul Platform API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Tests for the Backhaul Freight Matching Platform API Gateway and all microservices"
+  },
+  "item": [
+    {
+      "name": "User Service",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('userId');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "});",
+                  "",
+                  "// Store the userId for later use if needed",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.userId) {",
+                  "    pm.environment.set(\"user_id\", jsonData.userId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{test_password}}\",\n  \"name\": \"Test User\",\n  \"role\": 1\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/register",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has access and refresh tokens\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('accessToken');",
+                  "    pm.expect(jsonData).to.have.property('refreshToken');",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"access_token\", jsonData.accessToken);",
+                  "pm.environment.set(\"refresh_token\", jsonData.refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{test_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/login",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/me",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Truck Service",
+      "item": [
+        {
+          "name": "Register Truck (Placeholder)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This test will be implemented when the Truck Service is available",
+                  "pm.test(\"Placeholder test - will be implemented\", function () {",
+                  "    pm.expect(true).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"registrationNumber\": \"UXX 123A\",\n  \"make\": \"Toyota\",\n  \"model\": \"Dyna\",\n  \"year\": 2019,\n  \"capacityKg\": 5000,\n  \"capacityM3\": 20,\n  \"type\": 2\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "trucks"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Route Service",
+      "item": [
+        {
+          "name": "Create Route (Placeholder)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This test will be implemented when the Route Service is available",
+                  "pm.test(\"Placeholder test - will be implemented\", function () {",
+                  "    pm.expect(true).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"truckId\": \"{{truck_id}}\",\n  \"isReturnLeg\": true,\n  \"originAddress\": \"Kampala, Uganda\",\n  \"originPoint\": {\n    \"lat\": 0.347596,\n    \"lng\": 32.582520\n  },\n  \"destinationAddress\": \"Nairobi, Kenya\",\n  \"destinationPoint\": {\n    \"lat\": -1.292066,\n    \"lng\": 36.821946\n  },\n  \"departureTime\": \"2023-12-20T08:00:00Z\",\n  \"arrivalTime\": \"2023-12-20T18:00:00Z\",\n  \"availableFrom\": \"2023-12-19T16:00:00Z\",\n  \"availableTo\": \"2023-12-21T12:00:00Z\",\n  \"capacityAvailableKg\": 3000,\n  \"capacityAvailableM3\": 15\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/routes",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "routes"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shipment Service",
+      "item": [
+        {
+          "name": "Create Shipment (Placeholder)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This test will be implemented when the Shipment Service is available",
+                  "pm.test(\"Placeholder test - will be implemented\", function () {",
+                  "    pm.expect(true).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Coffee Beans Shipment\",\n  \"description\": \"15 bags of coffee beans\",\n  \"originAddress\": \"Mbarara, Uganda\",\n  \"originPoint\": {\n    \"lat\": -0.6169,\n    \"lng\": 30.6566\n  },\n  \"destinationAddress\": \"Nairobi, Kenya\",\n  \"destinationPoint\": {\n    \"lat\": -1.292066,\n    \"lng\": 36.821946\n  },\n  \"volumeM3\": 3,\n  \"weightKg\": 750,\n  \"cargoType\": \"Agricultural Produce\",\n  \"readyByDate\": \"2023-12-19T12:00:00Z\",\n  \"deliverByDate\": \"2023-12-22T18:00:00Z\",\n  \"budget\": 25000\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/shipments",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "shipments"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Booking Service",
+      "item": [
+        {
+          "name": "Create Booking (Placeholder)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This test will be implemented when the Booking Service is available",
+                  "pm.test(\"Placeholder test - will be implemented\", function () {",
+                  "    pm.expect(true).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shipmentId\": \"{{shipment_id}}\",\n  \"routeId\": \"{{route_id}}\",\n  \"agreedPrice\": 22000,\n  \"bookedWeightKg\": 750,\n  \"bookedVolumeM3\": 3\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/bookings",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "bookings"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "API Gateway Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/health",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "User Service Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+} 

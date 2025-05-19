@@ -1,0 +1,114 @@
+---
+description: APIGATEWAY
+globs: 
+alwaysApply: false
+---
+6. Microservice Specifications - Detailed Documentation
+6.13 API Gateway Service
+
+Purpose: Acts as the single entry point for all external client requests (like the Android mobile app and potentially future web apps or third-party integrations). It routes incoming requests to the appropriate internal microservice and handles cross-cutting concerns.
+
+Tech Stack: ASP.NET Core, Ocelot Library.
+
+Key Responsibilities:
+
+Request Routing: Maps external API paths (Upstream Paths) to internal microservice endpoints (Downstream Paths).
+
+Authentication & Authorization Enforcement: Validates incoming JWTs provided by clients (issued by the User Service) and enforces basic access control based on authenticated user identity/roles/scopes before forwarding the request. This offloads repetitive auth logic from individual services.
+
+Service Discovery/Resolution: Determines the network location (URL/IP) of the target downstream service instance. (Ocelot can do basic configuration-based resolution; more advanced requires integration with a discovery service like Consul, but is out of MVP scope).
+
+Rate Limiting: Configures and enforces limits on the number of requests from specific clients or IP addresses to protect backend services.
+
+Load Balancing: Simple client-side load balancing across multiple instances of a downstream service (configured in Ocelot).
+
+Header Manipulation: Adds, removes, or transforms headers on requests and responses.
+
+Request Aggregation (Potential future feature, not core MVP): Combining multiple downstream service requests into a single response for the client.
+
+Configuration:
+
+Ocelot is configured primarily via a ocelot.json file (or multiple files). This file defines:
+
+Routes: Each route maps an UpstreamPath and UpstreamHttpMethod to a DownstreamPath and DownstreamHostAndPort.
+
+AuthenticationOptions: Specifies which authentication scheme (e.g., JWT) should be used for a route and what claims/scopes are required.
+
+RateLimitingOptions: Defines rate limiting rules applied per route or globally.
+
+LoadBalancerOptions: Configures how requests are distributed if multiple downstream instances exist.
+
+Example ocelot.json snippet for routing and authenticating a User Service call:
+
+{
+  "Routes": [
+    {
+      "UpstreamPathTemplate": "/api/users/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "DownstreamPathTemplate": "/api/users/{everything}",
+      "DownstreamScheme": "http", // Or "https"
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "user-service", // Internal service name/DNS
+          "Port": 80 // Internal service port
+        }
+      ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "IdentityServer", // Name of your JWT auth scheme
+        "AllowedScopes": [ "api.read", "api.write" ] // Scopes required (optional)
+      }
+    },
+    // ... other routes for Truck, Route, Shipment, etc.
+    {
+       "UpstreamPathTemplate": "/api/trucks/{everything}",
+       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+       "DownstreamPathTemplate": "/api/trucks/{everything}",
+       "DownstreamScheme": "http",
+       "DownstreamHostAndPorts": [ { "Host": "truck-service", "Port": 80 } ],
+       "AuthenticationOptions": {
+         "AuthenticationProviderKey": "IdentityServer"
+         // Specific scopes/roles could be added here
+       }
+    }
+     // ... and so on for all external-facing routes
+  ],
+  "GlobalConfiguration": {
+    "BaseUrl": "https://api.yourplatform.com" // The external URL clients use
+  }
+}
+
+
+API Endpoints: The API Gateway is the API endpoint for external clients. All calls from the Android app will hit this gateway's URL. The specific paths (/api/users/register, /api/trucks, /api/routes, /api/shipments, etc.) are defined as UpstreamPathTemplates in its configuration. It typically doesn't have its own functional endpoints beyond potential /health checks.
+
+Data Model: The API Gateway is stateless and does not have a persistent database. Its "data" is its configuration (ocelot.json).
+
+Events: The API Gateway does not typically publish or consume domain events via the message bus. Its role is handling synchronous (or websocket) requests from clients.
+
+Dependencies: Depends on the availability and network reachability of all downstream microservices it routes traffic to. Depends on the User Service/IdentityServer for public key validation (to validate JWTs).
+
+Integration Points:
+
+External Clients: Mobile apps, web browsers, third-party APIs.
+
+Internal Microservices: Acts as a proxy routing requests to these services.
+
+IdentityServer/User Service: Uses the public key from IdentityServer to validate incoming JWTs.
+
+Mapbox/Matching Considerations:
+
+The Mapbox frontend in the Android app will make API calls to retrieve data it needs to display maps and tracking information. These calls will be directed to the API Gateway.
+
+Examples of calls routed by the Gateway for Mapbox-related features:
+
+GET /api/routes/{id} (routed to Route Service) - Needed to get route coordinates/geometry.
+
+GET /api/shipments/{id} (routed to Shipment Service) - Needed to get shipment origin/destination coordinates.
+
+GET /api/tracking/{bookingId} (routed to Tracking Service) - Needed to get the truck's latest location and ETA.
+
+The API Gateway ensures these requests from the mobile app reach the correct backend service, authenticates the user making the request, and potentially rate-limits the calls. It doesn't modify the geospatial data itself; it just passes the request and the response.
+
+Deployment: Deployed as one or more instances of an ASP.NET Core Web App Service (api-gateway) behind a load balancer (like Azure Application Gateway or a simple Load Balancer) for high availability and scalability. Its configuration (ocelot.json) should be managed carefully, potentially using Azure App Configuration.
+
+
+This new section clearly defines the API Gateway's role as a crucial infrastructure component, distinct from the domain microservices, and explains its configuration and interactions within the system.

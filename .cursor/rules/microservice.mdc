@@ -1,0 +1,1146 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Backhaul Freight Matching Platform (Microservices Edition)
+1. Introduction
+Many logistics operators in Uganda face inefficiencies on their return trips: trucks often travel empty, resulting in wasted fuel costs, lost revenue, and underutilized capacity. Simultaneously, shippers struggle to find reliable carriers for one-way or partial routes. Our solution is a cloud-native, microservices-based digital marketplace that connects shippers with trucks on their return journeys, optimizing load utilization and reducing costs for both parties.
+2. User Personas
+Truck Owner/Driver: Registers a truck, publishes outbound and return routes, specifies capacity, cargo preferences, pricing, and schedule.
+
+
+Shipper: Posts shipment requests (origin, destination, volume, weight, delivery window), browses matching return legs, and confirms bookings.
+
+
+Administrator: Oversees user verification, dispute resolution, payment reconciliation, analytics, and platform health.
+
+
+3. Core Features & Service Breakdown
+Feature Area
+Key Capabilities
+Microservice
+User Management
+Registration, authentication, profile, roles
+User Service
+Truck & Fleet
+Truck registration, vehicle profiles, availability
+Truck Service
+Route Management
+Publish routes (outbound + return), edit, deactivate
+Route Service
+Shipment Listings
+Post shipments, search/filter
+Shipment Service
+AI Load Recognition
+Photo-based cargo categorization using LLM vision models
+AI Service
+Booking Engine
+Capacity matching, price estimation, booking workflows
+Booking Service
+Matching & Optimization
+Geospatial matching, scheduling conflict resolution
+Matching Service
+Real-time Chat
+In-app messaging between drivers & shippers
+Chat Service
+Live Tracking
+GPS updates, ETAs, map overlays
+Tracking Service
+Notifications
+Email, SMS, push (bookings, status changes)
+Notification Service
+Admin & Analytics
+User verification, dispute tickets, dashboards
+Admin Service & Analytics Service
+Payments & Billing
+Payment gateway integration, invoicing, commissions
+Payment Service
+
+
+
+6. Microservice Specifications - Detailed Documentation
+
+Below is detailed documentation for each microservice in the MVP Backhaul Freight Matching Platform:
+
+6.1 User Service
+
+Purpose: Manages the complete lifecycle of users on the platform, including registration, authentication, profile management, and authorization. It is the system of record for user identities and roles.
+
+Tech Stack: ASP.NET Core Web API, Entity Framework Core, SQL Server, Duende IdentityServer (for OAuth2/OIDC).
+
+Key Responsibilities:
+
+User registration (Shipper, Truck Owner, Admin).
+
+Secure storage and verification of user credentials.
+
+Issuance and validation of JWTs for authentication.
+
+Management of user profiles (name, contact info, etc.).
+
+Enforcement of user roles and basic permissions.
+
+Handling password reset and email/phone verification workflows.
+
+Linking users to their specific roles (e.g., a User record is linked to a Truck Owner profile, which is then linked to Trucks).
+
+API Endpoints:
+
+POST /api/users/register - Creates a new user account. Accepts registration details (email, password, role, basic profile). Initiates email/phone verification.
+
+POST /api/users/login - Authenticates user credentials (email/password) and returns JWT and Refresh Token upon successful validation.
+
+GET /api/users/me - Retrieves the profile of the authenticated user based on the JWT claims.
+
+PUT /api/users/me - Allows the authenticated user to update their own profile information.
+
+GET /api/users/{id} - Retrieves a specific user's profile (may require admin or specific permissions).
+
+POST /api/users/logout - Invalidates the user's current session/refresh tokens.
+
+POST /api/users/verify/email - Endpoint to handle email verification links/codes.
+
+POST /api/users/verify/phone - Endpoint to handle phone verification codes.
+
+POST /api/users/password/forgot - Initiates password reset process (sends email/SMS).
+
+POST /api/users/password/reset - Completes password reset using a token.
+
+Data Model:
+
+User:
+
+Id (PK, GUID)
+
+Email (string, unique index)
+
+PhoneNumber (string, optional, unique index)
+
+HashedPassword (string)
+
+Salt (string, for password hashing)
+
+Name (string)
+
+Role (int/enum: Shipper=1, TruckOwner=2, Admin=3)
+
+IsEmailConfirmed (boolean)
+
+IsPhoneConfirmed (boolean)
+
+Rating (decimal, calculated average - consider if calculated/stored here or in Analytics)
+
+RegistrationDate (datetimeOffset)
+
+LastLoginDate (datetimeOffset)
+
+Status (int/enum: Active=1, Inactive=2, Suspended=3, PendingVerification=4)
+
+ProfilePictureUrl (string, optional)
+
+RefreshToken:
+
+Id (PK, GUID)
+
+UserId (FK to User.Id)
+
+Token (string, unique index)
+
+JwtId (string, associated JWT ID)
+
+IsUsed (boolean)
+
+IsRevoked (boolean)
+
+IssuedAt (datetimeOffset)
+
+ExpiresAt (datetimeOffset)
+
+Events:
+
+Publishes: UserCreated, UserVerified, UserStatusUpdated.
+
+Consumes: None specific in MVP scope.
+
+Dependencies: API Gateway (receives external requests), Duende IdentityServer (core component for token issuance, runs within this service's process or as a dependency), Notification Service (sends verification/reset emails/SMS via events).
+
+Integration Points: External email/SMS providers (via Notification Service).
+
+Mapbox/Matching Considerations: This service provides the user identity (UserId, Role) which is crucial for associating Trucks, Routes, Shipments, and Bookings. It does not directly handle geospatial or matching logic, but its data is foundational for those services to link actions back to users.
+
+Deployment: Deployed as an Azure Web App Service (user-service). Uses Azure SQL Database.
+
+6.2 Truck Service
+
+Purpose: Manages the registration, profiles, and status of trucks available on the platform. It is the system of record for truck assets.
+
+Tech Stack: ASP.NET Core Web API, Entity Framework Core, SQL Server.
+
+Key Responsibilities:
+
+Allow Truck Owners to register new trucks.
+
+Maintain detailed profiles for each truck (capacity, type, dimensions, registration info).
+
+Associate trucks with their owning user (OwnerId).
+
+Manage the status of trucks (active, inactive, maintenance).
+
+Store and manage verification documents/photos for trucks.
+
+API Endpoints:
+
+POST /api/trucks - Adds a new truck profile for the authenticated Truck Owner.
+
+GET /api/trucks - Lists trucks owned by the authenticated Truck Owner. Admin may list all trucks.
+
+GET /api/trucks/{id} - Retrieves details for a specific truck.
+
+PUT /api/trucks/{id} - Updates a truck's profile details or status.
+
+DELETE /api/trucks/{id} - Marks a truck as inactive or deleted.
+
+POST /api/trucks/{id}/verify - Endpoint used by Admin Service to mark a truck as verified (based on document checks).
+
+Data Model:
+
+Truck:
+
+Id (PK, GUID)
+
+OwnerId (FK to User.Id)
+
+RegistrationNumber (string, unique index)
+
+Make (string)
+
+Model (string)
+
+Year (integer)
+
+CapacityKg (decimal, maximum weight capacity in kilograms)
+
+CapacityM3 (decimal, maximum volume capacity in cubic meters, optional)
+
+Type (int/enum: Flatbed=1, BoxTruck=2, Tipper=3, etc.)
+
+CargoAreaLengthM (decimal, optional)
+
+CargoAreaWidthM (decimal, optional)
+
+CargoAreaHeightM (decimal, optional)
+
+LicensePlateImageUrl (string, URL to stored image)
+
+RegistrationDocumentUrl (string, URL to stored document)
+
+Photos (JSON array of strings, URLs to truck photos)
+
+Status (int/enum: Active=1, Inactive=2, UnderMaintenance=3, PendingVerification=4, Rejected=5)
+
+IsVerified (boolean, set by Admin)
+
+VerificationNotes (string, optional, admin notes)
+
+CreatedAt (datetimeOffset)
+
+UpdatedAt (datetimeOffset)
+
+Events:
+
+Publishes: TruckRegistered, TruckUpdated, TruckStatusUpdated, TruckVerified.
+
+Consumes: None specific in MVP scope (Admin actions could trigger status updates, but likely via direct API call).
+
+Dependencies: API Gateway.
+
+Integration Points: Blob Storage (for storing truck documents/photos).
+
+Mapbox/Matching Considerations: Provides crucial data (CapacityKg, CapacityM3, Type) used by the Matching Service to filter potential matches based on cargo requirements. Does not directly handle geospatial data.
+
+Deployment: Azure Web App Service (truck-service). Uses Azure SQL Database and Azure Blob Storage.
+
+6.3 Route Service
+
+Purpose: Manages the planned routes (outbound and return) for trucks. It stores the intended path, timing, and availability windows.
+
+Tech Stack: ASP.NET Core Web API, Entity Framework Core, PostgreSQL with PostGIS extension.
+
+Key Responsibilities:
+
+Allow Truck Owners to publish planned routes, specifying origin, destination, via points, and timings.
+
+Store geospatial data accurately using PostGIS types.
+
+Calculate estimated route distance and duration (potentially using a map API or PostGIS geometry functions).
+
+Maintain the availability status and remaining capacity for booking on a specific route leg.
+
+Allow updating and deactivating routes.
+
+API Endpoints:
+
+POST /api/routes - Publishes a new route. Accepts details including origin/destination addresses/coordinates, timestamps, capacity available.
+
+GET /api/routes?ownerId={guid}&isReturn={bool?}&status={int?} - Lists routes filtered by owner, return leg status, etc. Supports pagination.
+
+GET /api/routes/{id} - Retrieves details for a specific route, including its geospatial data.
+
+PUT /api/routes/{id} - Modifies an existing route.
+
+DELETE /api/routes/{id} - Deactivates or cancels a route.
+
+PUT /api/routes/{id}/capacity - Internal endpoint (or consumed by Booking Service) to update CapacityAvailable after a booking.
+
+Data Model:
+
+Route:
+
+Id (PK, GUID)
+
+TruckId (FK to Truck.Id)
+
+OwnerId (FK to User.Id, denormalized)
+
+IsReturnLeg (boolean, true if this is the leg available for backhaul matching)
+
+OriginAddress (string)
+
+OriginPoint (PostGIS POINT, geometry(Point, 4326))
+
+DestinationAddress (string)
+
+DestinationPoint (PostGIS POINT, geometry(Point, 4326))
+
+ViaPoints (JSON array of { Address: string, Lat: decimal, Lng: decimal } or PostGIS LINESTRING/MULTIPOINT)
+
+GeometryPath (PostGIS LINESTRING, geometry(LineString, 4326), optional, representing the planned path)
+
+DepartureTime (datetimeOffset, actual/planned start time)
+
+ArrivalTime (datetimeOffset, actual/planned end time)
+
+AvailableFrom (datetimeOffset, start of the window cargo can be loaded/picked up)
+
+AvailableTo (datetimeOffset, end of the window cargo must be unloaded/delivered)
+
+CapacityAvailableKg (decimal, remaining weight capacity on this leg)
+
+CapacityAvailableM3 (decimal, remaining volume capacity on this leg, optional)
+
+TotalCapacityKg (decimal, total weight capacity of the truck on this leg - useful for calculations)
+
+TotalCapacityM3 (decimal, total volume capacity of the truck on this leg - useful for calculations)
+
+EstimatedDistanceKm (decimal, calculated distance)
+
+EstimatedDurationMinutes (integer, calculated travel time)
+
+Status (int/enum: Planned=1, Active=2, Completed=3, Cancelled=4, BookedPartial=5, BookedFull=6)
+
+CreatedAt (datetimeOffset)
+
+UpdatedAt (datetimeOffset)
+
+Events:
+
+Publishes: RouteCreated, RouteUpdated, RouteStatusUpdated, RouteCapacityChanged.
+
+Consumes: BookingConfirmed (to potentially update CapacityAvailable), BookingCancelled (to potentially update CapacityAvailable).
+
+Dependencies: API Gateway, Truck Service (via FK and possibly fetching initial capacity), potentially a Map API (like Mapbox Directions) for distance/duration calculation on save, MassTransit/RabbitMQ (for consuming booking events).
+
+Integration Points: PostgreSQL with PostGIS extension. Potentially Mapbox Directions API (backend call).
+
+Mapbox/Matching Considerations:
+
+This service is critical for Mapbox frontend integration. It stores the geospatial points (OriginPoint, DestinationPoint, ViaPoints) and optionally the GeometryPath that the frontend Mapbox SDK will use to draw the route on the map.
+
+The backend needs to provide these coordinates/geometry via the API endpoints in a format the frontend can easily consume (e.g., GeoJSON, or simple arrays of Lat/Lng pairs).
+
+For Matching: It provides the geospatial origin/destination, capacity available, and timing windows (AvailableFrom/AvailableTo). The Matching Service will query this service (or consume its events) and use PostGIS functions on the OriginPoint, DestinationPoint, and potentially GeometryPath to find spatial overlaps/proximity with Shipments.
+
+The EstimatedDistanceKm and EstimatedDurationMinutes are calculated/stored here and can be displayed on the frontend via the Route details API. These could be calculated using Mapbox Directions API on the backend when the route is saved.
+
+Deployment: Azure Web App Service (route-service). Uses Azure Database for PostgreSQL with PostGIS.
+
+6.4 Shipment Service
+
+Purpose: Manages shipment requests posted by shippers, detailing the cargo, origin, destination, and required timings.
+
+Tech Stack: ASP.NET Core Web API, Entity Framework Core, SQL Server.
+
+Key Responsibilities:
+
+Allow Shippers to post new shipment requests.
+
+Store detailed cargo information (volume, weight, type, dimensions).
+
+Store geospatial origin and destination for the shipment.
+
+Maintain required pickup and delivery windows (ReadyByDate, DeliverByDate).
+
+Manage the status of shipments (posted, matching, booked, completed).
+
+API Endpoints:
+
+POST /api/shipments - Creates a new shipment request for the authenticated Shipper. Accepts cargo details, origin/destination addresses/coordinates, timings.
+
+GET /api/shipments?shipperId={guid}&status={int?} - Lists shipments filtered by shipper, status, etc. Supports pagination.
+
+GET /api/shipments/{id} - Retrieves details for a specific shipment.
+
+PUT /api/shipments/{id} - Updates a shipment request.
+
+DELETE /api/shipments/{id} - Cancels a shipment request.
+
+PUT /api/shipments/{id}/status - Internal endpoint (or consumed by Booking Service) to update shipment status (e.g., to 'Booked').
+
+Data Model:
+
+Shipment:
+
+Id (PK, GUID)
+
+ShipperId (FK to User.Id)
+
+Title (string)
+
+Description (string)
+
+OriginAddress (string)
+
+OriginPoint (complex type: { Lat: decimal, Lng: decimal } or separate Lat/Lng columns)
+
+DestinationAddress (string)
+
+DestinationPoint (complex type: { Lat: decimal, Lng: decimal } or separate Lat/Lng columns)
+
+VolumeM3 (decimal, required cargo volume)
+
+WeightKg (decimal, required cargo weight)
+
+CargoAreaLengthM (decimal, optional)
+
+CargoAreaWidthM (decimal, optional)
+
+CargoAreaHeightM (decimal, optional)
+
+CargoType (string/int, e.g., 'Agricultural Produce', 'Manufactured Goods' - potentially from AI Service)
+
+IsHazardous (boolean)
+
+ImageUrls (JSON array of strings, URLs to cargo photos)
+
+ReadyByDate (datetimeOffset, earliest pickup)
+
+DeliverByDate (datetimeOffset, latest delivery)
+
+Budget (decimal, optional, requested price)
+
+Status (int/enum: Posted=1, Matching=2, Booked=3, InProgress=4, Completed=5, Cancelled=6)
+
+CreatedAt (datetimeOffset)
+
+UpdatedAt (datetimeOffset)
+
+Events:
+
+Publishes: ShipmentPosted, ShipmentUpdated, ShipmentStatusUpdated.
+
+Consumes: LoadCategorized (from AI Service, to update CargoType, Dimensions, IsHazardous). BookingConfirmed (to update status).
+
+Dependencies: API Gateway, AI Service (via event consumption), MassTransit/RabbitMQ.
+
+Integration Points: Azure Blob Storage (for photos).
+
+Mapbox/Matching Considerations:
+
+Provides the geospatial origin/destination, capacity required, and timing windows for the Matching Service.
+
+The frontend Mapbox app will likely provide the OriginPoint and DestinationPoint coordinates when the shipper posts the shipment, using Mapbox Geocoding API. The backend stores these coordinates.
+
+The backend API endpoints (GET /api/shipments/{id}) must return these coordinates so the frontend Mapbox app can display the shipment location/path.
+
+Deployment: Azure Web App Service (shipment-service). Uses Azure SQL Database and Azure Blob Storage.
+
+6.5 AI Service (Load Recognition)
+
+Purpose: Analyzes images of cargo provided by shippers to automatically identify cargo type, estimate dimensions, and detect potential hazards using AI vision models.
+
+Tech Stack: ASP.NET Core Web API, Azure OpenAI Vision API (or custom ONNX model), MassTransit, RabbitMQ.
+
+Key Responsibilities:
+
+Receive image data (or URLs) associated with a shipment.
+
+Invoke an AI vision model to analyze the image content.
+
+Extract relevant cargo characteristics (type, dimensions, hazards).
+
+Publish the recognized cargo data as an event.
+
+API Endpoints:
+
+POST /api/ai/load-recognition - Accepts ShipmentId and image data (multipart/form-data). Processes the image and publishes an event. This endpoint might be called by the Shipment Service or the frontend directly after image upload.
+
+Data Model: This service is primarily stateless and event-driven. It processes requests and publishes results. It may log processing attempts and results internally but doesn't manage persistent domain entities like Shipments or Trucks.
+
+Message Contracts:
+
+Consumes: ImageUploaded (Event, if image upload is a separate service/event), or triggered by direct API call containing image.
+
+Publishes: LoadCategorized (Event):
+
+ShipmentId (GUID)
+
+PredictedCargoType (string/int, e.g., 'Grain', 'Machinery', 'Furniture')
+
+PredictedDimensions (JSON string, e.g., { Length: N, Width: N, Height: N } in meters, estimates)
+
+DetectedHazardFlags (JSON array of strings, e.g., ["Flammable", "Fragile"])
+
+ConfidenceScore (decimal, overall confidence of the recognition)
+
+ProcessingTimestamp (datetimeOffset)
+
+Dependencies: MassTransit/RabbitMQ, Azure OpenAI/external AI model endpoint.
+
+Integration Points: Azure OpenAI Service (Vision) or other external AI Vision APIs/models.
+
+Mapbox/Matching Considerations: Does not directly interact with Mapbox or the Matching Service logic. However, the data it produces (PredictedCargoType, PredictedDimensions, DetectedHazardFlags) is consumed by the Shipment Service and becomes part of the Shipment's data, which is used by the Matching Service for capacity and type compatibility filtering.
+
+Deployment: Azure Web App Service (ai-service). Relies on external AI service endpoints.
+
+6.6 Booking Service
+
+Purpose: Orchestrates the process of booking a shipment onto a specific route leg, managing the booking state from request to completion.
+
+Tech Stack: ASP.NET Core Web API, Entity Framework Core, SQL Server, MassTransit, RabbitMQ.
+
+Key Responsibilities:
+
+Receive and validate booking requests (linking a Shipment and a Route).
+
+Enforce capacity constraints based on the requested load and route availability.
+
+Manage the state transitions of a booking (requested, confirmed, cancelled, completed, etc.).
+
+Coordinate with other services (Route, Shipment, Payment, Notification) via events or gRPC.
+
+Persist booking details and history.
+
+API Endpoints:
+
+POST /api/bookings - Creates a new booking request. Accepts ShipmentId, RouteId, requested BookedWeightKg, BookedVolumeM3, and proposed AgreedPrice. Performs initial capacity check.
+
+GET /api/bookings?userId={guid}&role={string?}&status={int?} - Lists bookings associated with a user (as shipper or truck owner), filtered by status. Supports pagination.
+
+GET /api/bookings/{id} - Retrieves details for a specific booking.
+
+PUT /api/bookings/{id}/confirm - Endpoint for the Truck Owner to confirm a 'Requested' booking. Updates booking status, triggers capacity update on Route, triggers payment process.
+
+PUT /api/bookings/{id}/reject - Endpoint for the Truck Owner to reject a 'Requested' booking. Updates booking status.
+
+PUT /api/bookings/{id}/cancel - Endpoint for either party (with rules) to cancel a booking. Updates booking status, triggers capacity update on Route.
+
+PUT /api/bookings/{id}/complete - Endpoint for authorized party (e.g., Truck Owner upon delivery, confirmed by Shipper) to mark booking as completed. Triggers payment payout.
+
+Data Model:
+
+Booking:
+
+Id (PK, GUID)
+
+ShipmentId (FK to Shipment.Id)
+
+RouteId (FK to Route.Id)
+
+ShipperId (FK to User.Id, denormalized)
+
+TruckOwnerId (FK to User.Id, denormalized)
+
+TruckId (FK to Truck.Id, denormalized)
+
+AgreedPrice (decimal)
+
+BookedWeightKg (decimal)
+
+BookedVolumeM3 (decimal)
+
+BookingDate (datetimeOffset, when requested)
+
+ConfirmedDate (datetimeOffset, optional)
+
+RejectionDate (datetimeOffset, optional)
+
+CancellationDate (datetimeOffset, optional)
+
+CompletionDate (datetimeOffset, optional)
+
+Status (int/enum: Requested=1, Confirmed=2, Rejected=3, Cancelled=4, InProgress=5, Completed=6, PaymentPending=7, Paid=8)
+
+CancellationReason (string, optional)
+
+ShipperRatingGiven (integer, optional, 1-5)
+
+TruckOwnerRatingGiven (integer, optional, 1-5)
+
+CreatedAt (datetimeOffset)
+
+UpdatedAt (datetimeOffset)
+
+Events:
+
+Publishes: BookingRequested, BookingConfirmed, BookingRejected, BookingCancelled, BookingCompleted, BookingStatusUpdated.
+
+Consumes: None specific in MVP scope (might consume PaymentProcessed to update internal payment status if Payment Service doesn't manage the final 'Paid' state).
+
+Dependencies: API Gateway, MassTransit/RabbitMQ, Shipment Service (gRPC or read model for shipment details), Route Service (gRPC or read model for route/capacity details, gRPC/API for updating capacity).
+
+Integration Points: Payment Service (via published events like BookingConfirmed, BookingCompleted). Notification Service (via published events). Chat Service (likely initiated when booking is confirmed). Tracking Service (activated when booking status becomes 'InProgress').
+
+Mapbox/Matching Considerations: The Booking Service acts upon the potential matches identified by the Matching Service. It doesn't perform geospatial calculations itself, but the data it manages (linking a specific Shipment to a specific Route) is what the frontend Mapbox app will then display as a confirmed trip with tracking information.
+
+Deployment: Azure Web App Service (booking-service). Uses Azure SQL Database.
+
+6.7 Matching Service
+
+Purpose: Automatically identifies potential matches between available return route legs and newly posted or updated shipment requests.
+
+Tech Stack: ASP.NET Core Worker Service (or Azure Functions/WebJobs), Entity Framework Core (read-only or querying via events), PostgreSQL with PostGIS extension, MassTransit, RabbitMQ.
+
+Key Responsibilities:
+
+Consume events indicating new or updated Shipments and Routes.
+
+Query and filter Shipments and Routes based on availability, location, capacity, and timing using efficient geospatial queries (PostGIS).
+
+Apply business rules for matching (e.g., return legs only).
+
+Score potential matches based on criteria (e.g., proximity, capacity fit, timing overlap).
+
+Publish events for promising matches (MatchSuggested).
+
+API Endpoints: Typically, a worker service like this does not expose public API endpoints, or only internal health check endpoints. It is driven by messages.
+
+Data Model: This service primarily reads data from other services (Shipment, Route) via their databases (read replicas) or by rehydrating state from events. It might maintain a local cache or working set of active Shipments/Routes but doesn't manage core domain entities. It could potentially store match candidates temporarily before publishing events.
+
+MatchCandidate (Transient/Internal):
+
+ShipmentId (GUID)
+
+RouteId (GUID)
+
+Score (decimal)
+
+MatchDetails (JSON, e.g., DistanceOverlapKm, TimeOverlapMinutes, CapacityFitPercentage)
+
+SuggestedPrice (decimal, calculated - optional for MVP)
+
+GeneratedAt (datetimeOffset)
+
+Status (e.g., 'New', 'Suggested', 'Ignored') - Optional, for tracking
+
+Message Contracts:
+
+Consumes: ShipmentPosted, ShipmentUpdated, RouteCreated, RouteUpdated, BookingConfirmed, BookingCancelled (to update availability).
+
+Publishes: MatchSuggested (Event):
+
+MatchId (GUID, unique ID for the match suggestion)
+
+ShipmentId (GUID)
+
+RouteId (GUID)
+
+MatchScore (decimal)
+
+MatchDetails (JSON, details about why it's a match - distances, time overlap, capacity fit)
+
+SuggestedPrice (decimal, optional, estimation)
+
+Timestamp (datetimeOffset)
+
+Dependencies: MassTransit/RabbitMQ. Database (PostgreSQL with PostGIS) to query Route and Shipment data efficiently. Shipments Service (read access), Route Service (read access).
+
+Integration Points: PostgreSQL with PostGIS. Potentially Mapbox Matrix API (backend call for batch travel times between multiple points - future consideration, PostGIS is sufficient for MVP spatial filtering).
+
+Mapbox/Matching Considerations:
+
+This service is the core implementation of the matching algorithm.
+
+It heavily utilizes PostGIS for geospatial calculations.
+
+Matching Algorithm Details (MVP Logic):
+
+Trigger: Activated by consuming ShipmentPosted, ShipmentUpdated, RouteCreated, or RouteUpdated events.
+
+Data Fetch: When triggered, fetches the relevant Shipment or Route details. It also queries the latest state of other active Shipments (Status = Posted, Matching) and available Return Routes (IsReturnLeg = true, Status allowing booking, CapacityAvailable > 0). This querying happens against the database (PostgreSQL+PostGIS) which holds Route and Shipment data.
+
+Initial Filtering (SQL with PostGIS): Performs database-level filtering to quickly narrow down candidates using PostGIS spatial functions:
+
+Find Routes where the Route OriginPoint is within a configurable radius (e.g., 50km) of the Shipment OriginPoint.
+
+Find Routes where the Route DestinationPoint is within a configurable radius (e.g., 50km) of the Shipment DestinationPoint.
+
+Combine: Select pairs where both proximity conditions are met. (Or more advanced: check if the bounding boxes of the shipment path and route path overlap, or if the route geometry passes near the shipment origin and destination).
+
+Business Rule Filtering (In-memory or SQL): Filter the spatially relevant candidates further:
+
+Availability: Is the Route Status Planned or Active or BookedPartial? (Not Completed, Cancelled, BookedFull).
+
+Capacity: Is the Shipment's WeightKg <= Route's CapacityAvailableKg? Is the Shipment's VolumeM3 <= Route's CapacityAvailableM3? (Requires fetching Truck capacity or storing TotalCapacity on Route).
+
+Timing: Does the Shipment's ReadyByDate/DeliverByDate window overlap significantly with the Route's AvailableFrom/AvailableTo window? (Calculate overlap duration).
+
+Cargo Type Compatibility: (Optional for MVP) Does the Truck's Type support the Shipment's CargoType?
+
+Scoring (In-memory): For the remaining filtered candidates, calculate a match score. Simple MVP score could be a weighted sum of:
+
+Proximity score (closer origins/destinations = higher score, e.g., inverse of distance).
+
+Time overlap score (longer overlap = higher score).
+
+Capacity fit score (closer to filling capacity = higher score, up to 100%).
+
+Event Publishing: For matches exceeding a certain score threshold, publish a MatchSuggested event containing the ShipmentId, RouteId, and calculated MatchScore and MatchDetails.
+
+Concurrency Handling: The system relies on consuming events like BookingConfirmed or RouteCapacityChanged to react to state changes and potentially invalidate or adjust match suggestions (though the primary publishing happens on creation/update of Shipment/Route). Subsequent queries in step 2/3/4 will use the latest data.
+
+The Mapbox frontend doesn't directly interact with this service's logic, but it will display the Shipments and Routes whose data is queried by the Matching Service and potentially react to the MatchSuggested notifications received via the Notification Service.
+
+Deployment: Deployed as an Azure WebJob or Worker Service (matching-service), configured to run continuously or on a timer/queue trigger. Uses Azure Database for PostgreSQL with PostGIS (possibly a read-replica of the Route Service DB).
+
+6.8 Chat Service
+
+Purpose: Provides real-time in-app messaging capabilities, primarily to facilitate communication between a Shipper and a Truck Owner/Driver regarding a potential match or an active booking.
+
+Tech Stack: ASP.NET Core, SignalR Hubs, Azure SignalR Service, Entity Framework Core (SQL Server) or Azure Cosmos DB (NoSQL).
+
+Key Responsibilities:
+
+Handle WebSocket connections for real-time communication using SignalR.
+
+Relay messages between connected users associated with the same conversation (e.g., linked to a Booking).
+
+Persist chat message history.
+
+Manage user presence (optional).
+
+Associate chat conversations with specific business entities (like Bookings or Match Suggestions).
+
+API Endpoints:
+
+SignalR Hub: /chatHub - Handles WebSocket connections and message exchange.
+
+SendMessage (client-to-server method) - Sends a message for a given conversation ID.
+
+JoinConversation (client-to-server method) - User joins a specific conversation group (e.g., linked to a Booking ID).
+
+REST API (for history):
+
+GET /api/chat/history?conversationId={guid}&before={datetime?}&count={int?} - Retrieves historical messages for a conversation ID, with optional pagination.
+
+Internal API (for creating conversations):
+
+POST /api/chat/conversations - Creates a new conversation linked to an entity (e.g., BookingId, MatchId). Called by other services.
+
+Data Model:
+
+ChatMessage:
+
+Id (PK, GUID)
+
+ConversationId (GUID, FK to Conversation.Id or the direct entity ID)
+
+FromUserId (FK to User.Id)
+
+MessageContent (string)
+
+Timestamp (datetimeOffset)
+
+IsRead (boolean, optional)
+
+Conversation (Optional, but recommended to link to entities):
+
+Id (PK, GUID, could be same as BookingId/MatchId)
+
+EntityType (int/enum: Booking=1, MatchSuggestion=2)
+
+EntityId (GUID, FK to Booking.Id or MatchSuggestion.Id)
+
+ParticipantUserIds (JSON array of GUIDs, IDs of users in the conversation)
+
+CreatedAt (datetimeOffset)
+
+LastMessageAt (datetimeOffset)
+
+Events:
+
+Publishes: None specific in MVP scope.
+
+Consumes: BookingConfirmed (to create a new chat conversation linked to the booking), MatchSuggested (to create a chat conversation for pre-booking discussion, optional).
+
+Dependencies: Azure SignalR Service, MassTransit/RabbitMQ (for consuming events), User Service (to get user details for chat display - e.g., name, profile pic).
+
+Integration Points: Azure SignalR Service.
+
+Mapbox/Matching Considerations: Not directly involved. Provides a communication channel about bookings and matches that were facilitated by other services (including the Matching Service and data provided by Route/Shipment services, which are Mapbox-relevant).
+
+Deployment: Azure Web App Service hosting the SignalR Hub and REST API (chat-service). Uses Azure SignalR Service and Azure SQL Database or Cosmos DB.
+
+6.9 Tracking Service
+
+Purpose: Receives real-time location updates from trucks/driver apps for active bookings and provides current location and estimated time of arrival (ETA) information.
+
+Tech Stack: ASP.NET Core Web API, Entity Framework Core (for historical storage), Redis (for latest location cache), Third-party map APIs (like Mapbox Directions API for ETA).
+
+Key Responsibilities:
+
+Receive GPS coordinates (pings) from truck tracking devices or mobile apps.
+
+Store a history of location pings.
+
+Maintain the latest known location for each active booking in a fast-access cache (Redis).
+
+Calculate and provide the ETA for a booking based on the latest location and the defined route geometry.
+
+API Endpoints:
+
+POST /api/tracking/location - Receives a location update. Requires BookingId, Latitude, Longitude, Timestamp, and potentially Speed, Heading. Stores ping and updates latest location in Redis.
+
+GET /api/tracking/{bookingId} - Retrieves the latest location and calculated ETA for a specific active booking.
+
+GET /api/tracking/history/{bookingId}?from={datetime?}&to={datetime?} - Retrieves historical location pings for a booking within a time range (for replay).
+
+Data Model:
+
+LocationPing:
+
+Id (PK, long, auto-incrementing)
+
+BookingId (FK to Booking.Id)
+
+Latitude (decimal)
+
+Longitude (decimal)
+
+Timestamp (datetimeOffset)
+
+SpeedKmH (decimal, optional)
+
+HeadingDegrees (decimal, optional)
+
+Redis Cache:
+
+Key pattern: tracking:latest:{bookingId}
+
+Value: JSON object containing { Latitude, Longitude, Timestamp, EstimatedArrivalTime }.
+
+Events:
+
+Publishes: LocationUpdated (Event: BookingId, Latitude, Longitude, Timestamp, EstimatedArrivalTime), useful for frontend updates or other services reacting to location changes.
+
+Consumes: BookingConfirmed (to start expecting pings for this booking), BookingCompleted (to stop tracking). RouteUpdated (if route geometry changes mid-trip).
+
+Dependencies: API Gateway, Azure Cache for Redis, MassTransit/RabbitMQ, Booking Service (to confirm booking existence/status), Route Service (gRPC or read model to get route geometry for ETA calculation).
+
+Integration Points: Azure Cache for Redis, Third-party Map API (like Mapbox Directions API for ETA calculation - POST /directions/v5/{profile}/{coordinates}). The backend calls this API using the latest truck coordinates and the route's destination coordinates.
+
+Mapbox/Matching Considerations:
+
+This service is critical for the Mapbox frontend. It provides the real-time location data that the frontend Mapbox SDK will use to place the truck icon on the map (GET /api/tracking/{bookingId}).
+
+It calculates the ETA, which is also displayed on the frontend. This ETA calculation can utilize a Mapbox Directions API call on the backend, providing accurate travel time along roads.
+
+The frontend Mapbox SDK does not typically calculate ETA itself based on raw pings; it relies on the backend providing the computed ETA.
+
+The LocationPing data (coordinates) is received by this backend service, potentially from a separate mobile application or IoT device that might be using Mapbox SDKs or other means to get the GPS location. The backend just needs the Lat/Lng.
+
+Deployment: Azure Web App Service (tracking-service). Uses Azure SQL Database, Azure Cache for Redis.
+
+6.10 Notification Service
+
+Purpose: Provides a centralized mechanism for sending multi-channel notifications (email, SMS, push notifications) to users based on events occurring within the platform.
+
+Tech Stack: ASP.NET Core Worker Service (or Azure Function/WebJob), MassTransit, RabbitMQ, various SDKs (Twilio for SMS, SendGrid/Mailgun for Email, Firebase/Azure Notification Hubs for Push).
+
+Key Responsibilities:
+
+Subscribe to relevant events from other services.
+
+Fetch additional data required to compose notification messages (e.g., booking details, user names).
+
+Determine the appropriate notification channel(s) for a user/event.
+
+Format messages for each channel.
+
+Send notifications using external provider SDKs.
+
+Handle potential failures in sending notifications.
+
+API Endpoints: Typically does not expose public API endpoints, as it's event-driven. Might have internal endpoints for health checks or testing.
+
+Data Model: Primarily processes messages. May store logs of sent notifications or user notification preferences, but not core domain entities.
+
+NotificationLog (Optional):
+
+Id (PK)
+
+EventName (string)
+
+EntityId (GUID, relevant entity ID like BookingId)
+
+UserId (GUID, recipient)
+
+Channel (string: 'Email', 'SMS', 'Push')
+
+Status (string: 'Sent', 'Failed', 'Queued')
+
+Timestamp (datetimeOffset)
+
+FailureReason (string, optional)
+
+Message Contracts:
+
+Consumes: UserCreated (send verification), UserVerified (welcome), MatchSuggested (notify truck owner), BookingRequested (notify truck owner), BookingConfirmed (notify shipper & truck owner), BookingCancelled (notify both), ShipmentStatusUpdated, PaymentProcessed, TruckVerified (notify owner), LoadCategorized (notify shipper about results). Listens to many events across the system.
+
+Publishes: None in MVP scope.
+
+Dependencies: MassTransit/RabbitMQ. User Service (to get user contact info, preferences). Other services (to get details for message content, e.g., Booking Service, Shipment Service).
+
+Integration Points: Twilio API, SendGrid/Mailgun API, Firebase Cloud Messaging (FCM), Apple Push Notification Service (APNS) via Azure Notification Hubs.
+
+Mapbox/Matching Considerations: Not directly involved. It notifies users about matches and bookings facilitated by other services.
+
+Deployment: Deployed as an Azure WebJob or Worker Service (notification-service).
+
+6.11 Admin & Analytics Service
+
+Purpose: Provides a web-based interface and backend logic for platform administrators to manage users, trucks, shipments, and disputes, and to view platform analytics.
+
+Tech Stack: ASP.NET Core MVC/Blazor (for admin UI), Entity Framework Core, SQL Server (direct access to other services' read-replicas or a dedicated reporting database), Power BI or custom charting library.
+
+Key Responsibilities:
+
+Provide CRUD interfaces for admin users to manage data in other services (via gRPC or direct DB access).
+
+Implement workflows for user and truck verification.
+
+Manage dispute resolution processes.
+
+Aggregate data from various services for analytics dashboards.
+
+Generate reports on platform activity (trips, revenue, utilization).
+
+API Endpoints:
+
+GET /api/admin/users?filter... - List users.
+
+GET /api/admin/users/{id} - Get user details.
+
+PUT /api/admin/users/{id}/status - Update user status (suspend, activate).
+
+POST /api/admin/trucks/{id}/verify - Mark truck as verified (calls Truck Service internal endpoint).
+
+GET /api/admin/shipments?filter... - List shipments.
+
+GET /api/admin/routes?filter... - List routes.
+
+GET /api/admin/bookings?filter... - List bookings.
+
+POST /api/admin/disputes - Create a new dispute record.
+
+GET /api/admin/disputes?filter... - List disputes.
+
+PUT /api/admin/disputes/{id} - Update dispute status/details.
+
+GET /api/admin/analytics/summary - Get high-level platform metrics (total users, trucks, bookings, revenue).
+
+GET /api/admin/analytics/utilization - Report on truck utilization.
+
+Etc. for various reports/dashboards.
+
+Data Model: Manages admin-specific entities like Dispute and potentially reads from all other service databases.
+
+Dispute:
+
+Id (PK, GUID)
+
+BookingId (GUID, optional FK)
+
+ShipmentId (GUID, optional FK)
+
+RouteId (GUID, optional FK)
+
+ReporterUserId (FK to User.Id)
+
+ReportedUserId (GUID, optional FK to User.Id)
+
+Subject (string)
+
+Description (string)
+
+Status (int/enum: Open=1, InProgress=2, Resolved=3, Closed=4)
+
+Category (string/int: Payment, Damage, Delay, Behavior, etc.)
+
+CreatedAt (datetimeOffset)
+
+UpdatedAt (datetimeOffset)
+
+ResolvedByUserId (GUID, optional FK to User.Id, admin user)
+
+ResolutionDetails (string, optional)
+
+EvidenceUrls (JSON array of strings, optional)
+
+Events:
+
+Publishes: DisputeCreated, DisputeStatusUpdated.
+
+Consumes: Potentially BookingCompleted (to trigger automated payout calculation if complex), or aggregates data from other services.
+
+Dependencies: API Gateway, User Service (gRPC/direct DB), Truck Service (gRPC/direct DB), Shipment Service (gRPC/direct DB), Route Service (gRPC/direct DB), Booking Service (gRPC/direct DB), Payment Service (gRPC/direct DB).
+
+Integration Points: Power BI or other analytics platforms. Direct read access to other service databases (requires careful management of data consistency).
+
+Mapbox/Matching Considerations: Not directly involved. Provides administrative oversight and reporting on the outcomes of the matching and booking processes. Analytics might visualize trip origins/destinations on a map using aggregated data, but this would be done using a separate BI tool, not core Mapbox frontend interaction with this service.
+
+Deployment: Azure Web App Service (admin-service). Uses Azure SQL Database (potentially multiple).
+
+6.12 Payment Service
+
+Purpose: Handles all financial transactions, including processing payments from shippers, managing payouts to truck owners, calculating commissions, and reconciling transactions.
+
+Tech Stack: ASP.NET Core Web API, Entity Framework Core, SQL Server, Stripe SDK, Flutterwave SDK, MassTransit, RabbitMQ.
+
+Key Responsibilities:
+
+Integrate with one or more payment gateways (Stripe, Flutterwave).
+
+Receive requests to charge shippers for confirmed bookings.
+
+Handle payment gateway webhooks to update transaction status asynchronously.
+
+Process payout requests to transfer funds to truck owners (minus commission).
+
+Calculate platform commissions.
+
+Record detailed transaction history.
+
+Manage refunds.
+
+API Endpoints:
+
+POST /api/payments/charge - Initiates a payment charge against a shipper for a specific booking amount. Returns a payment intent or redirect URL.
+
+POST /api/payments/webhook - Endpoint configured with payment gateways to receive asynchronous notifications about transaction status changes (success, failure, chargeback).
+
+POST /api/payments/payout - Initiates a payout to a truck owner for a completed booking. Calculates and deducts commission.
+
+GET /api/payments/transactions?bookingId={guid} - Lists payment transactions related to a specific booking.
+
+GET /api/payments/transactions/{id} - Retrieves details of a single transaction.
+
+Data Model:
+
+PaymentTransaction:
+
+Id (PK, GUID)
+
+BookingId (FK to Booking.Id)
+
+UserId (FK to User.Id, associated user, e.g., the shipper who was charged or the truck owner who was paid)
+
+TransactionType (int/enum: Charge=1, Payout=2, Refund=3, Commission=4)
+
+Amount (decimal, gross amount)
+
+Currency (string, e.g., "UGX")
+
+GatewayTransactionId (string, unique ID from the payment gateway)
+
+Gateway (string, e.g., "Stripe", "Flutterwave")
+
+GatewayResponse (JSON string, raw response details, optional)
+
+Status (int/enum: Pending=1, Successful=2, Failed=3, Refunded=4, PartialRefund=5)
+
+InitiatedAt (datetimeOffset)
+
+CompletedAt (datetimeOffset, optional)
+
+GatewayFees (decimal)
+
+PlatformCommission (decimal, platform's cut)
+
+NetSettlementAmount (decimal, Amount - GatewayFees - PlatformCommission, or Amount if it's a commission record)
+
+Notes (string, optional)
+
+PayoutAccount (Optional, to store bank/mobile money details for payouts):
+
+Id (PK, GUID)
+
+UserId (FK to User.Id, the truck owner)
+
+AccountDetails (JSON string, encrypted - bank name, account number, mobile money number, etc.)
+
+IsVerified (boolean)
+
+VerificationStatus (string, optional)
+
+CreatedAt (datetimeOffset)
+
+UpdatedAt (datetimeOffset)
+
+Events:
+
+Publishes: PaymentInitiated, PaymentProcessed (Success/Failed), PayoutInitiated, PayoutProcessed (Success/Failed), CommissionRecorded, BookingPaymentStatusUpdated.
+
+Consumes: BookingConfirmed (to initiate charge), BookingCompleted (to initiate payout), BookingCancelled (to initiate refund/void charge).
+
+Dependencies: API Gateway, MassTransit/RabbitMQ, Booking Service (gRPC or read model for booking details).
+
+Integration Points: Stripe API, Flutterwave API, external bank/mobile money services (via payout APIs).
+
+Mapbox/Matching Considerations: Not directly involved. Handles the financial outcomes of bookings facilitated by the platform.
+
+Deployment: Azure Web App Service (payment-service). Uses Azure SQL Database. Requires secure storage for API keys (Key Vault) and potentially payout account details (encrypted storage).
+
+
+Observability
+Logging: Implement structured logging (Serilog configured with Application Insights sink) across all services. Log request details, service interactions (incoming/outgoing messages/gRPC calls), errors, and key business events. Ensure correlation IDs (e.g., from the API Gateway or message headers) are propagated through service calls and message flows to trace requests across services.
+Monitoring:
+Metrics: Use Prometheus client libraries (or ASP.NET Core built-in metrics) to expose service-specific metrics (request duration, error rates, queue lengths, database query times, CPU/memory usage). Collect these metrics using Azure Monitor or a dedicated Prometheus instance.
+Health Checks: Implement standard ASP.NET Core Health Checks in each service and expose a /health endpoint. Monitor these endpoints from an orchestrator or external monitoring tool.
+Alerting: Configure alerts based on key metrics (high error rates, low performance, service restarts, queue backlogs) and health check failures.
+Distributed Tracing: Implement distributed tracing (e.g., using OpenTelemetry with Azure Monitor Application Insights exporter) to track requests as they flow through the API Gateway, across multiple microservices via gRPC calls, and even asynchronous workflows initiated by messages. This is critical for debugging issues in a distributed system.
+
+
+Data Consistency & Eventual Consistency
+Database-per-Service: Each core domain service (User, Truck, Route, Shipment, Booking, Payment, Chat) owns its data store. Direct database access across service boundaries is generally avoided (read-replicas for analytics/matching might be an exception with clear rules).
+Eventual Consistency: For scenarios requiring data from other services (e.g., Booking Service needing Shipment and Route details, Matching Service needing both), data is propagated via asynchronous events (ShipmentPosted, RouteCreated, BookingConfirmed, etc.) using RabbitMQ. Services consume these events and update their own read models or trigger actions. This means data might not be instantly consistent across the entire system, which is a trade-off accepted for decoupling.
+Handling Inconsistencies: The system design must account for potential delays or failures in event processing. Example: Booking Service checks current capacity on Route via gRPC at the time of booking request to ensure immediate consistency for that critical operation, even though RouteCapacityChanged events also update state asynchronously. UIs should be designed to reflect potentially stale data or indicate processing status.
+
+API Design and Versioning
+API Contracts: Define clear, technology-agnostic API contracts using OpenAPI (Swagger) specifications for all external-facing API Gateway routes and potentially internal gRPC interfaces. This ensures shared understanding and facilitates client and service development.
+API Versioning: Implement API versioning (e.g., via URL path like /v1/api/users or using request headers) to allow evolving APIs without breaking existing clients. Services should support multiple API versions simultaneously during transition periods.
+Event Versioning: As the system evolves, event schemas published on the message bus will change. Implement event versioning (e.g., including version in the event type name like ShipmentPosted_v2) and design consumers to handle multiple event versions or ignore incompatible versions.
+
+. Error Handling
+Standardized Error Responses: Define a consistent error response format (e.g., JSON payload with error code, message, and details) for all API endpoints exposed via the gateway.
+Exception Handling: Implement structured exception handling within each service, logging detailed error information with correlation IDs.
+Service-to-Service Errors: Implement robust error handling for internal gRPC or HTTP calls between services (e.g., using Polly for retries and circuit breakers, checking for specific error codes or gRPC statuses). Services should handle transient errors gracefully.
+Message Handling Errors: Implement 'try/catch' blocks in message consumers. Failed messages should be retried a configurable number of times before being moved to a dead-letter queue for manual inspection and reprocessing.
+
+Idempotency
+Importance: Operations triggered by messages (e.g., updating route capacity based on BookingConfirmed, creating a chat conversation) must be idempotent. This means receiving the same message multiple times should have the same effect as receiving it once. This is crucial because message brokers can sometimes deliver messages more than once.
+Implementation:
+Use a unique identifier in the message payload (e.g., BookingId, ShipmentId, event ID).
+Before processing, check if the operation for that specific identifier has already been completed (e.g., check if a booking with that ID has already been marked as confirmed; check if a transaction with that payment gateway ID already exists).
+Implement database constraints or transactional logic where necessary to prevent duplicate actions.
+

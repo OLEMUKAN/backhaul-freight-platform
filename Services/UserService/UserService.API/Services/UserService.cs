@@ -1,0 +1,277 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using UserService.API.Events;
+using UserService.API.Models;
+using UserService.API.Models.Dtos;
+
+namespace UserService.API.Services
+{
+    public class UserService : IUserService
+    {
+        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IAuthService _authService;
+        private readonly IEventPublisher _eventPublisher;
+
+        public UserService(
+            UserManager<ApplicationUser> userManager,
+            IHttpContextAccessor httpContextAccessor,
+            IAuthService authService,
+            IEventPublisher eventPublisher)
+        {
+            _userManager = userManager;
+            _httpContextAccessor = httpContextAccessor;
+            _authService = authService;
+            _eventPublisher = eventPublisher;
+        }
+
+        public async Task<UserResponse> RegisterAsync(RegisterRequest request)
+        {
+            // Check if email is already registered
+            var existingUser = await _userManager.FindByEmailAsync(request.Email);
+            if (existingUser != null)
+            {
+                throw new ApplicationException("Email is already registered.");
+            }
+
+            var user = new ApplicationUser
+            {
+                UserName = request.Email,
+                Email = request.Email,
+                Name = request.Name,
+                Role = request.Role,
+                RegistrationDate = DateTimeOffset.UtcNow,
+                Status = 4, // PendingVerification
+                IsEmailConfirmed = false,
+                IsPhoneConfirmed = false
+            };
+
+            var result = await _userManager.CreateAsync(user, request.Password);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new ApplicationException($"User registration failed: {errors}");
+            }
+
+            // Generate email verification token (to be used for email sending)
+            await _authService.GenerateEmailVerificationTokenAsync(user);
+
+            // Publish user created event
+            await _eventPublisher.PublishAsync(new UserCreatedEvent
+            {
+                UserId = user.Id,
+                Email = user.Email ?? string.Empty,
+                Name = user.Name,
+                Role = user.Role
+            });
+
+            // TODO: Send verification email - will be implemented in notification service
+
+            return MapToUserResponse(user);
+        }
+
+        public async Task<UserResponse> GetUserByIdAsync(Guid id)
+        {
+            var user = await _userManager.FindByIdAsync(id.ToString());
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User with ID {id} not found.");
+            }
+
+            return MapToUserResponse(user);
+        }
+
+        public async Task<UserResponse> GetCurrentUserAsync()
+        {
+            var userId = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
+            {
+                throw new UnauthorizedAccessException("User is not authenticated.");
+            }
+
+            return await GetUserByIdAsync(userGuid);
+        }
+
+        public async Task<UserResponse> UpdateUserAsync(Guid userId, UpdateProfileRequest request)
+        {
+            var currentUserId = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(currentUserId) || Guid.Parse(currentUserId) != userId)
+            {
+                throw new UnauthorizedAccessException("You can only update your own profile.");
+            }
+
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User with ID {userId} not found.");
+            }
+
+            var userUpdated = false;
+            var updateEvent = new UserUpdatedEvent
+            {
+                UserId = user.Id,
+                Email = user.Email ?? string.Empty,
+                Role = user.Role
+            };
+
+            // Update user properties
+            if (!string.IsNullOrEmpty(request.Name) && user.Name != request.Name)
+            {
+                user.Name = request.Name;
+                updateEvent.Name = request.Name;
+                userUpdated = true;
+            }
+
+            if (!string.IsNullOrEmpty(request.PhoneNumber))
+            {
+                // If phone number changed, require verification again
+                if (user.PhoneNumber != request.PhoneNumber)
+                {
+                    user.PhoneNumber = request.PhoneNumber;
+                    user.IsPhoneConfirmed = false;
+                    updateEvent.PhoneNumber = request.PhoneNumber;
+                    updateEvent.IsPhoneConfirmed = false;
+                    userUpdated = true;
+                    // TODO: Send verification SMS
+                }
+            }
+
+            if (!string.IsNullOrEmpty(request.ProfilePictureUrl) && user.ProfilePictureUrl != request.ProfilePictureUrl)
+            {
+                user.ProfilePictureUrl = request.ProfilePictureUrl;
+                userUpdated = true;
+            }
+
+            if (userUpdated)
+            {
+                var result = await _userManager.UpdateAsync(user);
+                if (!result.Succeeded)
+                {
+                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                    throw new ApplicationException($"User update failed: {errors}");
+                }
+
+                // Publish user updated event
+                await _eventPublisher.PublishAsync(updateEvent);
+            }
+
+            return MapToUserResponse(user);
+        }
+
+        public async Task<bool> DeleteUserAsync(Guid id)
+        {
+            // Check if admin or same user
+            var currentUserId = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserRole = _httpContextAccessor.HttpContext?.User.FindFirstValue("role");
+            
+            if (string.IsNullOrEmpty(currentUserId) || 
+                (Guid.Parse(currentUserId) != id && currentUserRole != "3")) // 3 = Admin
+            {
+                throw new UnauthorizedAccessException("You don't have permission to delete this user.");
+            }
+
+            var user = await _userManager.FindByIdAsync(id.ToString());
+            if (user == null)
+            {
+                return false;
+            }
+
+            var previousStatus = user.Status;
+            
+            // Soft delete - mark as inactive
+            user.Status = 2; // Inactive
+            await _userManager.UpdateAsync(user);
+
+            // Publish user status changed event
+            await _eventPublisher.PublishAsync(new UserStatusChangedEvent
+            {
+                UserId = user.Id,
+                Email = user.Email ?? string.Empty,
+                Role = user.Role,
+                PreviousStatus = previousStatus,
+                NewStatus = user.Status
+            });
+
+            return true;
+        }
+
+        public async Task<string> GeneratePhoneVerificationCodeAsync(Guid userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User with ID {userId} not found.");
+            }
+
+            // Generate 6-digit code
+            var random = new Random();
+            var code = random.Next(100000, 999999).ToString();
+
+            // In a real implementation, store this securely with expiration
+            // For now, we'll use ASP.NET Identity's phone token functionality
+            var token = await _userManager.GenerateChangePhoneNumberTokenAsync(user, user.PhoneNumber ?? string.Empty);
+
+            // TODO: Send the code via SMS
+
+            return token;
+        }
+
+        public async Task<bool> VerifyPhoneAsync(Guid userId, string code)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                return false;
+            }
+
+            // Verify code
+            var result = await _userManager.VerifyChangePhoneNumberTokenAsync(user, code, user.PhoneNumber ?? string.Empty);
+            if (result)
+            {
+                var wasAlreadyVerified = user.IsPhoneConfirmed;
+                user.IsPhoneConfirmed = true;
+                await _userManager.UpdateAsync(user);
+
+                if (!wasAlreadyVerified)
+                {
+                    // Publish verification event
+                    await _eventPublisher.PublishAsync(new UserVerifiedEvent
+                    {
+                        UserId = user.Id,
+                        Email = user.Email ?? string.Empty,
+                        Role = user.Role,
+                        PhoneVerified = true,
+                        EmailVerified = user.IsEmailConfirmed
+                    });
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private UserResponse MapToUserResponse(ApplicationUser user)
+        {
+            return new UserResponse
+            {
+                Id = user.Id,
+                Email = user.Email ?? string.Empty,
+                Name = user.Name,
+                Role = user.Role,
+                IsEmailConfirmed = user.IsEmailConfirmed,
+                IsPhoneConfirmed = user.IsPhoneConfirmed,
+                Rating = user.Rating,
+                RegistrationDate = user.RegistrationDate,
+                LastLoginDate = user.LastLoginDate,
+                Status = user.Status,
+                ProfilePictureUrl = user.ProfilePictureUrl
+            };
+        }
+    }
+} 
