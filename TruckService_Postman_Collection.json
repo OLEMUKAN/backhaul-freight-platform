@@ -1,0 +1,1049 @@
+{
+  "info": {
+    "name": "Truck Service API",
+    "description": "Collection for testing the Truck Service API endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login as Truck Owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "// Map accessToken to token to maintain backward compatibility",
+                  "pm.environment.set(\"truck_owner_token\", jsonData.accessToken);",
+                  "// Extract userId from JWT token payload",
+                  "var tokenParts = jsonData.accessToken.split('.');",
+                  "if (tokenParts.length > 1) {",
+                  "    var tokenPayload = JSON.parse(atob(tokenParts[1]));",
+                  "    var userId = tokenPayload.sub; // 'sub' claim contains the user ID",
+                  "    pm.environment.set(\"truck_owner_id\", userId);",
+                  "}",
+                  "",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains token\", function () {",
+                  "    pm.expect(jsonData.accessToken).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains JWT with userId\", function () {",
+                  "    var tokenParts = jsonData.accessToken.split('.');",
+                  "    pm.expect(tokenParts.length).to.be.at.least(2);",
+                  "    var payload = JSON.parse(atob(tokenParts[1]));",
+                  "    pm.expect(payload.sub).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"{{truck_owner_email}}\",\n    \"password\": \"{{truck_owner_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{user_service_url}}/api/users/login",
+              "host": [
+                "{{user_service_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "login"
+              ]
+            },
+            "description": "Log in as a truck owner to get authentication token"
+          }
+        },
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "// Map accessToken to token to maintain backward compatibility",
+                  "pm.environment.set(\"admin_token\", jsonData.accessToken);",
+                  "// Extract userId from JWT token payload",
+                  "var tokenParts = jsonData.accessToken.split('.');",
+                  "if (tokenParts.length > 1) {",
+                  "    var tokenPayload = JSON.parse(atob(tokenParts[1]));",
+                  "    var userId = tokenPayload.sub; // 'sub' claim contains the user ID",
+                  "    pm.environment.set(\"admin_id\", userId);",
+                  "}",
+                  "",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains token\", function () {",
+                  "    pm.expect(jsonData.accessToken).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains JWT with userId\", function () {",
+                  "    var tokenParts = jsonData.accessToken.split('.');",
+                  "    pm.expect(tokenParts.length).to.be.at.least(2);",
+                  "    var payload = JSON.parse(atob(tokenParts[1]));",
+                  "    pm.expect(payload.sub).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{user_service_url}}/api/users/login",
+              "host": [
+                "{{user_service_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "login"
+              ]
+            },
+            "description": "Log in as an admin to get authentication token"
+          }
+        }
+      ],
+      "description": "Authentication endpoints to get JWT tokens for testing"
+    },
+    {
+      "name": "Truck Management",
+      "item": [
+        {
+          "name": "Create Truck",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"truck_id\", jsonData.id);",
+                  "",
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains truck details\", function () {",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    pm.expect(jsonData.registrationNumber).to.exist;",
+                  "    pm.expect(jsonData.make).to.exist;",
+                  "    pm.expect(jsonData.model).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Truck belongs to authenticated owner\", function () {",
+                  "    pm.expect(jsonData.ownerId).to.equal(pm.environment.get(\"truck_owner_id\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"registrationNumber\": \"UBX-{{$randomInt}}\",\n  \"make\": \"Toyota\",\n  \"model\": \"Dyna\",\n  \"year\": 2020,\n  \"capacityKg\": 5000,\n  \"capacityM3\": 12.5,\n  \"type\": 2,\n  \"cargoAreaLengthM\": 5.2,\n  \"cargoAreaWidthM\": 2.4,\n  \"cargoAreaHeightM\": 2.1\n}"
+            },
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ]
+            },
+            "description": "Create a new truck profile"
+          }
+        },        {
+          "name": "Get Trucks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Each truck has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0].id).to.exist;",
+                  "        pm.expect(jsonData[0].registrationNumber).to.exist;",
+                  "        pm.expect(jsonData[0].make).to.exist;",
+                  "        pm.expect(jsonData[0].model).to.exist;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "1",
+                  "description": "Filter by status (1=Active)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all trucks owned by the authenticated user"
+          }
+        },
+        {
+          "name": "Get Trucks with Status Filter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"All trucks have active status\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    // Check if any trucks are returned",
+                  "    if (jsonData.length > 0) {",
+                  "        // Verify all trucks have status = 1 (Active)",
+                  "        jsonData.forEach(function(truck) {",
+                  "            pm.expect(truck.status).to.equal(1);",
+                  "        });",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks?status=1",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "1",
+                  "description": "Filter by status (1=Active)"
+                }
+              ]
+            },
+            "description": "Get all active trucks owned by the authenticated user"
+          }
+        },
+        {
+          "name": "Get Truck by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains truck details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"truck_id\"));",
+                  "    pm.expect(jsonData.registrationNumber).to.exist;",
+                  "    pm.expect(jsonData.make).to.exist;",
+                  "    pm.expect(jsonData.model).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/{{truck_id}}",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}"
+              ]
+            },
+            "description": "Get a specific truck by ID"
+          }
+        },
+        {
+          "name": "Update Truck",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains updated truck details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var requestBody = JSON.parse(pm.request.body.raw);",
+                  "    ",
+                  "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"truck_id\"));",
+                  "    ",
+                  "    // Verify the updated fields match what we sent",
+                  "    if (requestBody.make) {",
+                  "        pm.expect(jsonData.make).to.equal(requestBody.make);",
+                  "    }",
+                  "    if (requestBody.capacityKg) {",
+                  "        pm.expect(jsonData.capacityKg).to.equal(requestBody.capacityKg);",
+                  "    }",
+                  "    if (requestBody.status) {",
+                  "        pm.expect(jsonData.status).to.equal(requestBody.status);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"make\": \"Mitsubishi\",\n  \"capacityKg\": 6000,\n  \"capacityM3\": 14.0,\n  \"status\": 1\n}"
+            },
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/{{truck_id}}",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}"
+              ]
+            },
+            "description": "Update an existing truck"
+          }
+        },
+        {
+          "name": "Verify Truck (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains verified truck details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var requestBody = JSON.parse(pm.request.body.raw);",
+                  "    ",
+                  "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"truck_id\"));",
+                  "    pm.expect(jsonData.isVerified).to.equal(requestBody.isVerified);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isVerified\": true,\n  \"verificationNotes\": \"All documents verified and approved.\"\n}"
+            },
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/{{truck_id}}/verify",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}",
+                "verify"
+              ]
+            },
+            "description": "Admin verifies a truck"
+          }
+        },        {
+          "name": "Upload Truck Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains document URL\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.url).to.exist;",
+                  "    pm.expect(jsonData.url).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/truck_document.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/{{truck_id}}/documents?documentType=LicensePlate",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "documentType",
+                  "value": "LicensePlate",
+                  "description": "Can be LicensePlate, RegistrationDocument, or Photo"
+                }
+              ]
+            },
+            "description": "Upload a document for a truck (license plate, registration or photo)"
+          }
+        },
+        {
+          "name": "Upload Truck Document - Missing Document Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/truck_document.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/{{truck_id}}/documents",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}",
+                "documents"
+              ]
+            },
+            "description": "Attempt to upload a document without specifying document type"
+          }
+        },
+        {
+          "name": "Upload Truck Document - No File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": []
+            },
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/{{truck_id}}/documents?documentType=LicensePlate",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "documentType",
+                  "value": "LicensePlate"
+                }
+              ]
+            },
+            "description": "Attempt to upload a document without providing a file"
+          }
+        },
+        {
+          "name": "Delete Truck",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/{{truck_id}}",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}"
+              ]
+            },
+            "description": "Delete/deactivate a truck"
+          }
+        }
+      ],
+      "description": "Endpoints for managing truck profiles"
+    },
+    {
+      "name": "Edge Cases",
+      "item": [
+        {
+          "name": "Get Non-existent Truck",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "00000000-0000-0000-0000-000000000000"
+              ]
+            },
+            "description": "Attempt to get a truck with an ID that doesn't exist"
+          }
+        },
+        {
+          "name": "Create Truck (Invalid Data)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"registrationNumber\": \"\",\n  \"make\": \"\",\n  \"model\": \"\",\n  \"year\": 1800,\n  \"capacityKg\": -1000,\n  \"type\": 99\n}"
+            },
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ]
+            },
+            "description": "Attempt to create a truck with invalid data"
+          }
+        },
+        {
+          "name": "Access Without Authentication",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ]
+            },
+            "description": "Attempt to access API without authentication"
+          }
+        },
+        {
+          "name": "Verify Truck as Truck Owner (Forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isVerified\": true,\n  \"verificationNotes\": \"Self-verification attempt.\"\n}"
+            },
+            "url": {
+              "raw": "{{truck_service_url}}/api/trucks/{{truck_id}}/verify",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}",
+                "verify"
+              ]
+            },
+            "description": "Attempt to verify truck as a Truck Owner instead of Admin"
+          }
+        }
+      ],
+      "description": "Tests for handling edge cases and error conditions"
+    },    {
+      "name": "Service Discovery",
+      "item": [
+        {
+          "name": "Get All Services",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is a dictionary of services\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('object');",
+                  "});",
+                  "",
+                  "pm.test(\"Dictionary contains service URLs\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    // Check if any services exist in the dictionary",
+                  "    const serviceCount = Object.keys(jsonData).length;",
+                  "    pm.expect(serviceCount).to.be.at.least(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{truck_service_url}}/api/servicediscovery/services",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "servicediscovery",
+                "services"
+              ]
+            },
+            "description": "Get all registered services (basic info)"
+          }
+        },
+        {
+          "name": "Get Service Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array of service details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test(\"Service details contain required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0].name).to.exist;",
+                  "        pm.expect(jsonData[0].url).to.exist;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{truck_service_url}}/api/servicediscovery/services/details",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "servicediscovery",
+                "services",
+                "details"
+              ]
+            },
+            "description": "Get detailed information about all registered services"
+          }
+        },
+        {
+          "name": "Check Service Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains service health status\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.serviceName).to.exist;",
+                  "    pm.expect(jsonData.isAvailable).to.be.a('boolean');",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains service details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.serviceDetails) {",
+                  "        pm.expect(jsonData.serviceDetails.name).to.exist;",
+                  "        pm.expect(jsonData.serviceDetails.url).to.exist;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{truck_service_url}}/api/servicediscovery/check/TruckService",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "api",
+                "servicediscovery",
+                "check",
+                "TruckService"
+              ]
+            },
+            "description": "Check health status of a specific service"
+          }
+        }
+      ],
+      "description": "Endpoints for service discovery and health checks"
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Service Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{truck_service_url}}/health",
+              "host": [
+                "{{truck_service_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Health check endpoint to verify service availability"
+          }
+        }
+      ],
+      "description": "Endpoints for monitoring service health"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "truck_service_url",
+      "value": "https://localhost:7198",
+      "type": "string"
+    },
+    {
+      "key": "user_service_url",
+      "value": "https://localhost:2999",
+      "type": "string"
+    }
+  ]
+} 

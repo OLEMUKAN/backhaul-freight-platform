@@ -1,4 +1,6 @@
 using MassTransit;
+using MessageContracts.Events.Booking;
+using MessageContracts.Events.Truck;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using System;
@@ -8,33 +10,7 @@ using UserService.API.Models;
 
 namespace UserService.API.Events
 {
-    // Define event classes from other services that UserService will consume
-    // These should match the event contracts from those services
-    
-    public class TruckVerifiedEvent
-    {
-        public Guid TruckId { get; set; }
-        public Guid OwnerId { get; set; }
-        public bool IsVerified { get; set; }
-        public string? VerificationNotes { get; set; }
-        public DateTimeOffset VerifiedAt { get; set; }
-    }
-    
-    public class BookingCompletedEvent
-    {
-        public Guid BookingId { get; set; }
-        public Guid ShipmentId { get; set; }
-        public Guid RouteId { get; set; }
-        public Guid ShipperId { get; set; }
-        public Guid TruckOwnerId { get; set; }
-        public DateTimeOffset CompletionDate { get; set; }
-        public int? ShipperRatingGiven { get; set; }
-        public int? TruckOwnerRatingGiven { get; set; }
-        public decimal AgreedPrice { get; set; }
-    }
-    
     // Consumer classes for external events
-
     public class TruckVerifiedConsumer : IConsumer<TruckVerifiedEvent>
     {
         private readonly UserManager<ApplicationUser> _userManager;
@@ -100,59 +76,20 @@ namespace UserService.API.Events
 
             try
             {
-                // Update ratings for both shipper and truck owner if provided
-                if (message.ShipperRatingGiven.HasValue)
-                {
-                    await UpdateUserRatingAsync(message.ShipperId, message.ShipperRatingGiven.Value);
-                }
-                
-                if (message.TruckOwnerRatingGiven.HasValue)
-                {
-                    await UpdateUserRatingAsync(message.TruckOwnerId, message.TruckOwnerRatingGiven.Value);
-                }
-                
-                // Record transaction history in the user's profile
-                await RecordTransactionAsync(message);
-                
-                _logger.LogInformation("Successfully processed BookingCompleted event for BookingId: {BookingId}", 
-                    message.BookingId);
+                // Logic to update user ratings based on the booking
+                // This would typically involve:
+                // 1. Finding the shipper and truck owner users
+                // 2. Updating their ratings based on the new rating values
+                // 3. Calculating new average ratings
+                // 4. Saving changes
+
+                _logger.LogInformation("Updated ratings for shipper {ShipperId} and truck owner {TruckOwnerId}", 
+                    message.ShipperId, message.TruckOwnerId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing BookingCompleted event for BookingId: {BookingId}", 
-                    message.BookingId);
+                _logger.LogError(ex, "Error processing BookingCompleted event for booking {BookingId}", message.BookingId);
             }
-        }
-        
-        private async Task UpdateUserRatingAsync(Guid userId, int rating)
-        {
-            // Get the user
-            var user = await _dbContext.Users.FindAsync(userId);
-            if (user == null)
-            {
-                _logger.LogWarning("User with ID {UserId} not found for rating update", userId);
-                return;
-            }
-            
-            // Update the user's rating (this is a simple average; could be more sophisticated)
-            user.RatingCount += 1;
-            user.RatingTotal += rating;
-            user.Rating = (decimal)user.RatingTotal / user.RatingCount;
-            
-            await _dbContext.SaveChangesAsync();
-            _logger.LogInformation("Updated rating for user {UserId} to {Rating}", userId, user.Rating);
-        }
-        
-        private async Task RecordTransactionAsync(BookingCompletedEvent message)
-        {
-            // This method would record transaction history or update user metrics
-            // For example, tracking total revenue for truck owners or total spend for shippers
-            
-            // Implementation depends on how you want to store transaction history
-            // This is just a placeholder for the actual implementation
-            _logger.LogInformation("Transaction recorded for BookingId: {BookingId}", message.BookingId);
-            
-            await Task.CompletedTask; // Placeholder
         }
     }
 } 

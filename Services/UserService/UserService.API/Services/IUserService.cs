@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UserService.API.Models;
 using UserService.API.Models.Dtos;
+using UserService.API.Models.Enums;
 
 namespace UserService.API.Services
 {
@@ -15,5 +16,6 @@ namespace UserService.API.Services
         Task<bool> DeleteUserAsync(Guid id);
         Task<string> GeneratePhoneVerificationCodeAsync(Guid userId);
         Task<bool> VerifyPhoneAsync(Guid userId, string code);
+        Task<bool> UpdateUserStatusAsync(Guid userId, UserStatus newStatus);
     }
-} 
+}

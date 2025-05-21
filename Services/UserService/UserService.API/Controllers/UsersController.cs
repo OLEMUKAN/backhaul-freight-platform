@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
@@ -6,6 +7,9 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using UserService.API.Models.Dtos;
 using UserService.API.Services;
+using Microsoft.AspNetCore.Identity;
+using UserService.API.Models;
+using UserService.API.Models.Enums;
 
 namespace UserService.API.Controllers
 {
@@ -16,15 +20,18 @@ namespace UserService.API.Controllers
         private readonly IUserService _userService;
         private readonly IAuthService _authService;
         private readonly ILogger<UsersController> _logger;
+        private readonly UserManager<ApplicationUser> _userManager;
 
         public UsersController(
             IUserService userService, 
             IAuthService authService, 
-            ILogger<UsersController> logger)
+            ILogger<UsersController> logger,
+            UserManager<ApplicationUser> userManager)
         {
             _userService = userService;
             _authService = authService;
             _logger = logger;
+            _userManager = userManager;
         }
 
         [HttpPost("register")]
@@ -171,6 +178,82 @@ namespace UserService.API.Controllers
             {
                 _logger.LogWarning("Phone verification code generation failed: {Message}", ex.Message);
                 return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("validate/{id}")]
+        public async Task<IActionResult> ValidateUserExists(Guid id)
+        {
+            try
+            {
+                var user = await _userManager.FindByIdAsync(id.ToString());
+                if (user == null)
+                {
+                    _logger.LogWarning("User validation failed: User {UserId} not found", id);
+                    return NotFound();
+                }
+                
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error validating user {UserId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Error validating user");
+            }
+        }
+
+        [HttpGet("validate/{id}/role/{role}")]
+        public async Task<IActionResult> ValidateUserRole(Guid id, string role)
+        {
+            try
+            {
+                var user = await _userManager.FindByIdAsync(id.ToString());
+                if (user == null)
+                {
+                    _logger.LogWarning("User role validation failed: User {UserId} not found", id);
+                    return NotFound("User not found");
+                }
+                  // Check if user has the required role
+                var isInRole = await _userManager.IsInRoleAsync(user, role);
+                
+                // Also check if the user is active
+                var isActive = user.Status == UserStatus.Active;
+                
+                if (!isInRole || !isActive)
+                {
+                    _logger.LogWarning("User role validation failed: User {UserId} is not an active {Role}", id, role);
+                    return BadRequest($"User is not an active {role}");
+                }
+                
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error validating user {UserId} role {Role}", id, role);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Error validating user role");
+            }
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{id}/status")]
+        public async Task<IActionResult> UpdateUserStatus(Guid id, [FromBody] UpdateUserStatusRequest request)
+        {
+            try
+            {
+                var result = await _userService.UpdateUserStatusAsync(id, request.Status);
+                
+                if (result)
+                {
+                    _logger.LogInformation("Admin updated status for user {UserId} to {Status}", id, request.Status);
+                    return Ok(new { message = "User status updated successfully." });
+                }
+                
+                return BadRequest(new { message = "Failed to update user status." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating status for user {UserId}", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Error updating user status");
             }
         }
     }

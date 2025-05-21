@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UserService.API.Models.Enums;
 
 namespace UserService.API.Events
 {
@@ -8,7 +9,7 @@ namespace UserService.API.Events
     {
         public Guid UserId { get; set; }
         public string Email { get; set; } = string.Empty;
-        public int Role { get; set; }
+        public UserRole Role { get; set; }
         public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
     }
 
@@ -28,14 +29,12 @@ namespace UserService.API.Events
 
     public class UserVerifiedEvent : UserEventBase
     {
-        public bool EmailVerified { get; set; }
-        public bool PhoneVerified { get; set; }
-    }
-
-    public class UserStatusChangedEvent : UserEventBase
+        public bool IsEmailVerified { get; set; }
+        public bool IsPhoneVerified { get; set; }
+    }    public class UserStatusChangedEvent : UserEventBase
     {
-        public int PreviousStatus { get; set; }
-        public int NewStatus { get; set; }
+        public UserStatus PreviousStatus { get; set; }
+        public UserStatus NewStatus { get; set; }
     }
 
     public class UserLoginEvent : UserEventBase
@@ -79,7 +78,7 @@ namespace UserService.API.Events
 
     public class UserRoleChangedEvent : UserEventBase
     {
-        public int OldRole { get; set; }
+        public int PreviousRole { get; set; }
         public int NewRole { get; set; }
     }
 

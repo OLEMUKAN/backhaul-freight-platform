@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Identity;
 using System;
 using System.Collections.Generic;
+using UserService.API.Models.Enums;
 
 namespace UserService.API.Models
 {
     public class ApplicationUser : IdentityUser<Guid>
     {
         public string Name { get; set; } = string.Empty;
-        public int Role { get; set; } // 1=Shipper, 2=TruckOwner, 3=Admin
+        public UserRole Role { get; set; } = UserRole.Shipper;
         public bool IsEmailConfirmed { get; set; }
         public bool IsPhoneConfirmed { get; set; }
         
@@ -18,7 +19,7 @@ namespace UserService.API.Models
         
         public DateTimeOffset RegistrationDate { get; set; }
         public DateTimeOffset? LastLoginDate { get; set; }
-        public int Status { get; set; } // 1=Active, 2=Inactive, 3=Suspended, 4=PendingVerification
+        public UserStatus Status { get; set; } = UserStatus.PendingVerification;
         public string? ProfilePictureUrl { get; set; }
         
         // Additional fields for enhanced tracking

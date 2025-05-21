@@ -12,6 +12,11 @@ using UserService.API.Models;
 using UserService.API.Services;
 using UserService.API.Events;
 using MassTransit;
+using ServiceDiscovery;
+using ServiceDiscovery.Middleware;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
+using SharedSettings;
 
 // Load configuration
 var builder = WebApplication.CreateBuilder(args);
@@ -69,25 +74,8 @@ try
     .AddEntityFrameworkStores<UserDbContext>()
     .AddDefaultTokenProviders();
 
-    // Authentication
-    builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    })
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "DefaultKeyForDevelopmentOnly12345678901234567890"))
-        };
-    });
+    // Authentication - using shared settings
+    builder.Services.AddJwtAuthentication(builder.Configuration);
 
     // Configure MassTransit with RabbitMQ
     builder.Services.AddMassTransit(config =>
@@ -176,13 +164,18 @@ try
 
     builder.Services.AddHealthChecks()
         .AddDbContextCheck<UserDbContext>()
-        .AddRabbitMQ(rabbitConnectionString: connectionString);
-
+        .AddRabbitMQ(rabbitConnectionString: connectionString);    // Service discovery
+    builder.Services.AddServiceDiscovery(builder.Configuration);
+    
+    // Register service-based HttpClients
+    builder.Services.AddServiceHttpClient("TruckServiceClient", "TruckService");
+    
     // Services
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<IAuthService, AuthService>();
     builder.Services.AddScoped<IUserService, UserService.API.Services.UserService>();
-    builder.Services.AddScoped<IEventPublisher, EventPublisher>();
+    builder.Services.AddScoped<UserService.API.Services.IEventPublisher, UserService.API.Services.EventPublisher>();
+    builder.Services.AddScoped<ServiceHttpClientFactory>();
 
     var app = builder.Build();
     
@@ -217,13 +210,14 @@ try
     app.UseStaticFiles();
 
     // Use Serilog for request logging
-    app.UseSerilogRequestLogging();
-
-    // Routing
+    app.UseSerilogRequestLogging();    // Routing
     app.UseRouting();
 
     // CORS
     app.UseCors("CorsPolicy");
+    
+    // Register service with service registry
+    app.UseServiceRegistration("UserService");
 
     // Authentication & Authorization
     app.UseAuthentication();

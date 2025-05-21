@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using UserService.API.Models.Enums;
 
 namespace UserService.API.Models.Dtos
 {
@@ -20,8 +21,7 @@ namespace UserService.API.Models.Dtos
         public string Name { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Role is required")]
-        [Range(1, 3, ErrorMessage = "Role must be between 1 and 3 (1=Shipper, 2=TruckOwner, 3=Admin)")]
-        public int Role { get; set; }
+        public UserRole Role { get; set; } = UserRole.Shipper;
     }
 
     public class UpdateProfileRequest
@@ -34,20 +34,18 @@ namespace UserService.API.Models.Dtos
 
         [Url(ErrorMessage = "Invalid URL format")]
         public string? ProfilePictureUrl { get; set; }
-    }
-
-    public class UserResponse
+    }    public class UserResponse
     {
         public Guid Id { get; set; }
         public string Email { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
-        public int Role { get; set; }
+        public UserRole Role { get; set; }
         public bool IsEmailConfirmed { get; set; }
         public bool IsPhoneConfirmed { get; set; }
         public decimal? Rating { get; set; }
         public DateTimeOffset RegistrationDate { get; set; }
         public DateTimeOffset? LastLoginDate { get; set; }
-        public int Status { get; set; }
+        public UserStatus Status { get; set; }
         public string? ProfilePictureUrl { get; set; }
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 using UserService.API.Events;
 using UserService.API.Models;
 using UserService.API.Models.Dtos;
+using UserService.API.Models.Enums;
 
 namespace UserService.API.Services
 {
@@ -17,17 +19,20 @@ namespace UserService.API.Services
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IAuthService _authService;
         private readonly IEventPublisher _eventPublisher;
+        private readonly ILogger<UserService> _logger;
 
         public UserService(
             UserManager<ApplicationUser> userManager,
             IHttpContextAccessor httpContextAccessor,
             IAuthService authService,
-            IEventPublisher eventPublisher)
+            IEventPublisher eventPublisher,
+            ILogger<UserService> logger)
         {
             _userManager = userManager;
             _httpContextAccessor = httpContextAccessor;
             _authService = authService;
             _eventPublisher = eventPublisher;
+            _logger = logger;
         }
 
         public async Task<UserResponse> RegisterAsync(RegisterRequest request)
@@ -37,16 +42,14 @@ namespace UserService.API.Services
             if (existingUser != null)
             {
                 throw new ApplicationException("Email is already registered.");
-            }
-
-            var user = new ApplicationUser
+            }            var user = new ApplicationUser
             {
                 UserName = request.Email,
                 Email = request.Email,
                 Name = request.Name,
                 Role = request.Role,
                 RegistrationDate = DateTimeOffset.UtcNow,
-                Status = 4, // PendingVerification
+                Status = UserStatus.PendingVerification,
                 IsEmailConfirmed = false,
                 IsPhoneConfirmed = false
             };
@@ -164,13 +167,12 @@ namespace UserService.API.Services
         }
 
         public async Task<bool> DeleteUserAsync(Guid id)
-        {
-            // Check if admin or same user
+        {            // Check if admin or same user
             var currentUserId = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
             var currentUserRole = _httpContextAccessor.HttpContext?.User.FindFirstValue("role");
             
             if (string.IsNullOrEmpty(currentUserId) || 
-                (Guid.Parse(currentUserId) != id && currentUserRole != "3")) // 3 = Admin
+                (Guid.Parse(currentUserId) != id && currentUserRole != UserRole.Admin.ToString("D")))
             {
                 throw new UnauthorizedAccessException("You don't have permission to delete this user.");
             }
@@ -184,7 +186,7 @@ namespace UserService.API.Services
             var previousStatus = user.Status;
             
             // Soft delete - mark as inactive
-            user.Status = 2; // Inactive
+            user.Status = UserStatus.Inactive;
             await _userManager.UpdateAsync(user);
 
             // Publish user status changed event
@@ -245,14 +247,56 @@ namespace UserService.API.Services
                         UserId = user.Id,
                         Email = user.Email ?? string.Empty,
                         Role = user.Role,
-                        PhoneVerified = true,
-                        EmailVerified = user.IsEmailConfirmed
+                        IsPhoneVerified = true,
+                        IsEmailVerified = user.IsEmailConfirmed
                     });
                 }
 
                 return true;
             }
 
+            return false;
+        }        public async Task<bool> UpdateUserStatusAsync(Guid userId, UserStatus newStatus)
+        {
+            _logger.LogInformation("Updating status for user {UserId} to {Status}", userId, newStatus);
+            
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                _logger.LogWarning("User not found with ID {UserId}", userId);
+                return false;
+            }
+            
+            var previousStatus = user.Status;
+            
+            // Only update if status is actually changing
+            if (previousStatus == newStatus)
+            {
+                _logger.LogInformation("User {UserId} already has status {Status}, no change needed", userId, newStatus);
+                return true;
+            }
+            
+            user.Status = newStatus;
+            var result = await _userManager.UpdateAsync(user);
+            
+            if (result.Succeeded)
+            {
+                _logger.LogInformation("Successfully updated status for user {UserId} from {PreviousStatus} to {NewStatus}", 
+                    userId, previousStatus, newStatus);
+                    
+                // Publish status changed event
+                await _eventPublisher.PublishAsync(new Events.UserStatusChangedEvent
+                {
+                    UserId = userId,
+                    PreviousStatus = previousStatus,
+                    NewStatus = newStatus
+                });
+                
+                return true;
+            }
+            
+            _logger.LogWarning("Failed to update status for user {UserId}: {Errors}", 
+                userId, string.Join(", ", result.Errors.Select(e => e.Description)));
             return false;
         }
 

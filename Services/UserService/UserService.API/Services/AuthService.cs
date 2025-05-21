@@ -13,6 +13,7 @@ using UserService.API.Data;
 using UserService.API.Events;
 using UserService.API.Models;
 using UserService.API.Models.Dtos;
+using UserService.API.Models.Enums;
 
 namespace UserService.API.Services
 {
@@ -140,8 +141,8 @@ namespace UserService.API.Services
                         UserId = user.Id,
                         Email = user.Email ?? string.Empty,
                         Role = user.Role,
-                        EmailVerified = true,
-                        PhoneVerified = user.IsPhoneConfirmed
+                        IsEmailVerified = true,
+                        IsPhoneVerified = user.IsPhoneConfirmed
                     });
                 }
                 
@@ -178,30 +179,44 @@ namespace UserService.API.Services
         {
             // Generate JWT Token
             var jwtId = Guid.NewGuid().ToString();
-            var claims = new[]
+            var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, jwtId),
-                new Claim("role", user.Role.ToString()),
+                // Convert Role from integer to string name and use standard ClaimTypes.Role
+                new Claim(ClaimTypes.Role, GetRoleName(user.Role)),
+                // Add numeric role value for systems that expect it
+                new Claim("role", ((int)user.Role).ToString()),
+                // Add string role name for systems that expect it
+                new Claim("roleName", user.Role.ToString()),
                 new Claim("name", user.Name ?? string.Empty)
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var keyBytes = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));
+            var securityKey = new SymmetricSecurityKey(keyBytes);
+            // Assign a key ID for the token
+            securityKey.KeyId = "auth-token-key-1";
+            var signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
             
             var tokenExpiration = DateTime.UtcNow.AddMinutes(
                 int.Parse(_configuration["Jwt:ExpiryMinutes"] ?? "60"));
             
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: tokenExpiration,
-                signingCredentials: creds
-            );
-
-            var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+            // Create JWT Security Token Descriptor
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Issuer = _configuration["Jwt:Issuer"],
+                Audience = _configuration["Jwt:Audience"],
+                Subject = new ClaimsIdentity(claims),
+                NotBefore = DateTime.UtcNow,
+                Expires = tokenExpiration,
+                SigningCredentials = signingCredentials
+            };
+            
+            // Create and write the token
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var accessToken = tokenHandler.WriteToken(token);
 
             // Generate Refresh Token
             var refreshToken = new RefreshToken
@@ -216,15 +231,18 @@ namespace UserService.API.Services
                 ExpiresAt = DateTimeOffset.UtcNow.AddDays(
                     int.Parse(_configuration["Jwt:RefreshTokenExpiryDays"] ?? "7"))
             };
-
+            
             await _context.RefreshTokens.AddAsync(refreshToken);
             await _context.SaveChangesAsync();
-
+            
             return new LoginResponse 
             { 
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
-                ExpiresAt = tokenExpiration
+                ExpiresAt = tokenExpiration,
+                // Added properties to match Postman expectations
+                Token = accessToken,
+                UserId = user.Id.ToString()
             };
         }
 
@@ -235,5 +253,19 @@ namespace UserService.API.Services
             rng.GetBytes(randomNumber);
             return Convert.ToBase64String(randomNumber);
         }
+
+        private string GetRoleName(UserRole role)
+        {
+            // Use the enum extension method but add a fallback in case of error
+            try
+            {
+                return role.ToRoleName();
+            }
+            catch (Exception)
+            {
+                // Fallback to a safe default if the extension method fails
+                return role.ToString();
+            }
+        }
     }
-} 
+}

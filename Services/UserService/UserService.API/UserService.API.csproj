@@ -33,5 +33,10 @@
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.2.0" />
     <PackageReference Include="MassTransit.AspNetCore" Version="7.3.1" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SharedLibraries\MessageContracts\MessageContracts.csproj" />
+    <ProjectReference Include="..\..\..\SharedLibraries\ServiceDiscovery\ServiceDiscovery.csproj" />
+    <ProjectReference Include="..\..\Common\SharedSettings\SharedSettings.csproj" />
+  </ItemGroup>
 
 </Project>
