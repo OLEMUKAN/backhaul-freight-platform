@@ -11,6 +11,7 @@ using UserService.API.Middleware;
 using UserService.API.Models;
 using UserService.API.Services;
 using UserService.API.Events;
+using UserService.API.Models.Enums;
 using MassTransit;
 using ServiceDiscovery;
 using ServiceDiscovery.Middleware;
@@ -210,11 +211,16 @@ try
     app.UseStaticFiles();
 
     // Use Serilog for request logging
-    app.UseSerilogRequestLogging();    // Routing
+    app.UseSerilogRequestLogging();
+    
+    // Routing
     app.UseRouting();
 
     // CORS
     app.UseCors("CorsPolicy");
+    
+    // Seed ASP.NET Identity roles
+    await RoleSeeder.SeedRolesAsync(app.Services);
     
     // Register service with service registry
     app.UseServiceRegistration("UserService");

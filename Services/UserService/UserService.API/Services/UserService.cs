@@ -42,16 +42,18 @@ namespace UserService.API.Services
             if (existingUser != null)
             {
                 throw new ApplicationException("Email is already registered.");
-            }            var user = new ApplicationUser
+            }
+            var user = new ApplicationUser
             {
                 UserName = request.Email,
                 Email = request.Email,
                 Name = request.Name,
                 Role = request.Role,
                 RegistrationDate = DateTimeOffset.UtcNow,
-                Status = UserStatus.PendingVerification,
-                IsEmailConfirmed = false,
-                IsPhoneConfirmed = false
+                // DEV MODE: Set all verifications to true and status to Active
+                Status = UserStatus.Active,
+                IsEmailConfirmed = true,
+                IsPhoneConfirmed = true
             };
 
             var result = await _userManager.CreateAsync(user, request.Password);
@@ -60,6 +62,9 @@ namespace UserService.API.Services
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                 throw new ApplicationException($"User registration failed: {errors}");
             }
+
+            // Assign ASP.NET Identity role for IsInRoleAsync to work
+            await _userManager.AddToRoleAsync(user, user.Role.ToString());
 
             // Generate email verification token (to be used for email sending)
             await _authService.GenerateEmailVerificationTokenAsync(user);
@@ -318,4 +323,4 @@ namespace UserService.API.Services
             };
         }
     }
-} 
+}
