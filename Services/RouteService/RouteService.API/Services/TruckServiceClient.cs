@@ -1,92 +1,112 @@
-using System.Net;
-using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using RouteService.API.Services.Interfaces;
+using System;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
 
 namespace RouteService.API.Services
 {
-    /// <summary>
-    /// Client for interacting with the Truck Service API
-    /// </summary>
     public class TruckServiceClient : ITruckServiceClient
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<TruckServiceClient> _logger;
-        
+
         public TruckServiceClient(IHttpClientFactory httpClientFactory, ILogger<TruckServiceClient> logger)
         {
-            _httpClient = httpClientFactory.CreateClient("TruckService") 
-                ?? throw new ArgumentNullException(nameof(httpClientFactory));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _httpClient = httpClientFactory.CreateClient("TruckService");
+            _logger = logger;
         }
-        
-        /// <inheritdoc />
+
         public async Task<bool> VerifyTruckOwnershipAsync(Guid truckId, Guid ownerId)
         {
+            var requestUrl = $"/api/trucks/{truckId}/owner/{ownerId}";
             try
             {
-                _logger.LogInformation("Verifying ownership of truck {TruckId} for owner {OwnerId}", truckId, ownerId);
-                
-                var response = await _httpClient.GetAsync($"api/trucks/{truckId}/verify-ownership/{ownerId}");
-                
+                var response = await _httpClient.GetAsync(requestUrl);
+
                 if (response.IsSuccessStatusCode)
                 {
-                    var result = await response.Content.ReadFromJsonAsync<bool>();
-                    return result;
+                    return true;
                 }
-                
-                if (response.StatusCode == HttpStatusCode.NotFound)
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
-                    _logger.LogWarning("Truck {TruckId} or owner {OwnerId} not found", truckId, ownerId);
+                    _logger.LogWarning("Truck ownership verification failed: Truck {TruckId} for owner {OwnerId} not found (404).", truckId, ownerId);
                     return false;
                 }
                 
-                _logger.LogWarning("Failed to verify truck ownership. Status code: {StatusCode}", response.StatusCode);
-                response.EnsureSuccessStatusCode(); // Throw exception for non-success codes other than NotFound
+                _logger.LogError("Truck ownership verification failed for Truck {TruckId}, Owner {OwnerId}. Status code: {StatusCode}. Response: {Response}", 
+                    truckId, ownerId, response.StatusCode, await response.Content.ReadAsStringAsync());
+                return false;
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "HTTP request exception during truck ownership verification for Truck {TruckId}, Owner {OwnerId}.", truckId, ownerId);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error verifying ownership of truck {TruckId} for owner {OwnerId}", truckId, ownerId);
-                throw;
+                _logger.LogError(ex, "Unexpected exception during truck ownership verification for Truck {TruckId}, Owner {OwnerId}.", truckId, ownerId);
+                return false;
             }
         }
-        
-        /// <inheritdoc />
+
         public async Task<(decimal CapacityKg, decimal? CapacityM3)> GetTruckCapacityAsync(Guid truckId)
         {
+            var requestUrl = $"/api/trucks/{truckId}/capacity"; 
             try
             {
-                _logger.LogInformation("Getting capacity information for truck {TruckId}", truckId);
-                
-                var response = await _httpClient.GetAsync($"api/trucks/{truckId}/capacity");
-                
-                response.EnsureSuccessStatusCode();
-                
-                var capacity = await response.Content.ReadFromJsonAsync<TruckCapacityResponse>();
-                
-                if (capacity == null)
+                var response = await _httpClient.GetAsync(requestUrl);
+
+                if (response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("Received null capacity for truck {TruckId}", truckId);
-                    throw new InvalidOperationException($"Received null capacity from Truck Service for truck {truckId}");
+                    if (response.Content == null)
+                    {
+                        _logger.LogWarning("GetTruckCapacityAsync for Truck {TruckId} returned successful status code but content was null.", truckId);
+                        return (0, null);
+                    }
+                    try
+                    {
+                        var capacity = await response.Content.ReadFromJsonAsync<TruckCapacityDto>();
+                        if (capacity != null)
+                        {
+                            return (capacity.CapacityKg, capacity.CapacityM3);
+                        }
+                        _logger.LogWarning("GetTruckCapacityAsync for Truck {TruckId} resulted in null after deserialization.", truckId);
+                        return (0,null);
+                    }
+                    catch (JsonException ex)
+                    {
+                        _logger.LogError(ex, "JSON deserialization error during GetTruckCapacityAsync for Truck {TruckId}.", truckId);
+                        return (0, null);
+                    }
                 }
-                
-                _logger.LogInformation("Retrieved capacity for truck {TruckId}: {CapacityKg} kg, {CapacityM3} m³", 
-                    truckId, capacity.CapacityKg, capacity.CapacityM3);
-                    
-                return (capacity.CapacityKg, capacity.CapacityM3);
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.LogWarning("GetTruckCapacityAsync failed: Truck {TruckId} not found (404).", truckId);
+                    return (0, null);
+                }
+
+                _logger.LogError("GetTruckCapacityAsync failed for Truck {TruckId}. Status code: {StatusCode}. Response: {Response}", 
+                    truckId, response.StatusCode, await response.Content.ReadAsStringAsync());
+                return (0, null);
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "HTTP request exception during GetTruckCapacityAsync for Truck {TruckId}.", truckId);
+                return (0, null);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting capacity for truck {TruckId}", truckId);
-                throw;
+                _logger.LogError(ex, "Unexpected exception during GetTruckCapacityAsync for Truck {TruckId}.", truckId);
+                return (0, null);
             }
         }
-        
-        /// <summary>
-        /// DTO for truck capacity response
-        /// </summary>
-        private class TruckCapacityResponse
+
+        // DTO for deserializing capacity, property names match expected JSON (case-insensitive by default with System.Text.Json)
+        private class TruckCapacityDto
         {
             public decimal CapacityKg { get; set; }
             public decimal? CapacityM3 { get; set; }

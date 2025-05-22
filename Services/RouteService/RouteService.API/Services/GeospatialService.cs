@@ -1,112 +1,97 @@
 using NetTopologySuite.Geometries;
 using RouteService.API.Services.Interfaces;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace RouteService.API.Services
 {
-    /// <summary>
-    /// Service for handling geospatial operations
-    /// </summary>
     public class GeospatialService : IGeospatialService
     {
         private readonly GeometryFactory _geometryFactory;
-        
+        private const double EarthRadiusKm = 6371.0;
+
         public GeospatialService()
         {
-            // Create factory with SRID 4326 (WGS84, standard for GPS)
-            _geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
+            _geometryFactory = new GeometryFactory(new PrecisionModel(), 4326); // SRID 4326 for WGS 84
         }
 
-        /// <inheritdoc />
-        public double CalculateDistanceInKilometers(Point point1, Point point2)
-        {
-            if (point1 == null || point2 == null)
-                throw new ArgumentNullException(nameof(point1), "Points cannot be null");
-
-            // Haversine formula for calculating great-circle distance between two points on a sphere
-            const double earthRadiusKm = 6371.0;
-            
-            var lat1 = point1.Y * Math.PI / 180;
-            var lon1 = point1.X * Math.PI / 180;
-            var lat2 = point2.Y * Math.PI / 180;
-            var lon2 = point2.X * Math.PI / 180;
-            
-            var dLat = lat2 - lat1;
-            var dLon = lon2 - lon1;
-            
-            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-                    Math.Cos(lat1) * Math.Cos(lat2) *
-                    Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-                    
-            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-            
-            return earthRadiusKm * c;
-        }
-
-        /// <inheritdoc />
-        public int CalculateEstimatedDurationInMinutes(Point point1, Point point2, double averageSpeedKph = 70)
-        {
-            if (averageSpeedKph <= 0)
-                throw new ArgumentException("Average speed must be greater than zero", nameof(averageSpeedKph));
-                
-            // Calculate distance
-            var distanceKm = CalculateDistanceInKilometers(point1, point2);
-            
-            // Calculate time in hours: distance / speed
-            var timeHours = distanceKm / averageSpeedKph;
-            
-            // Convert to minutes and round to nearest integer
-            return (int)Math.Round(timeHours * 60);
-        }
-
-        /// <inheritdoc />
-        public LineString CreateLineString(IEnumerable<Point> points)
-        {
-            if (points == null)
-                throw new ArgumentNullException(nameof(points));
-                
-            var pointArray = points.ToArray();
-            
-            if (pointArray.Length < 2)
-                throw new ArgumentException("At least two points are required to create a LineString", nameof(points));
-                
-            return _geometryFactory.CreateLineString(pointArray);
-        }
-
-        /// <inheritdoc />
-        public bool ValidatePoint(Point point)
-        {
-            if (point == null)
-                return false;
-                
-            // Check if coordinates are within valid ranges
-            // Longitude: -180 to 180
-            // Latitude: -90 to 90
-            return point.X >= -180 && point.X <= 180 && 
-                   point.Y >= -90 && point.Y <= 90;
-        }
-
-        /// <inheritdoc />
         public Point CreatePoint(double longitude, double latitude)
         {
-            // Validate coordinates
-            if (longitude < -180 || longitude > 180)
-                throw new ArgumentOutOfRangeException(nameof(longitude), "Longitude must be between -180 and 180");
-                
-            if (latitude < -90 || latitude > 90)
-                throw new ArgumentOutOfRangeException(nameof(latitude), "Latitude must be between -90 and 90");
-                
-            // Create point with correct axis order (X=longitude, Y=latitude)
             return _geometryFactory.CreatePoint(new Coordinate(longitude, latitude));
         }
 
-        /// <inheritdoc />
         public double[] PointToCoordinateArray(Point point)
         {
             if (point == null)
                 throw new ArgumentNullException(nameof(point));
-                
-            // Return as [longitude, latitude]
-            return new double[] { point.X, point.Y };
+
+            return new[] { point.X, point.Y };
+        }
+
+        public bool ValidatePoint(Point point)
+        {
+            if (point == null)
+                return false;
+
+            return point.X >= -180 && point.X <= 180 && point.Y >= -90 && point.Y <= 90;
+        }
+
+        public double CalculateDistanceInKilometers(Point point1, Point point2)
+        {
+            if (point1 == null)
+                throw new ArgumentNullException(nameof(point1));
+            if (point2 == null)
+                throw new ArgumentNullException(nameof(point2));
+
+            if (!ValidatePoint(point1) || !ValidatePoint(point2))
+                throw new ArgumentException("Invalid point coordinates.");
+
+            var lat1Rad = DegreesToRadians(point1.Y);
+            var lon1Rad = DegreesToRadians(point1.X);
+            var lat2Rad = DegreesToRadians(point2.Y);
+            var lon2Rad = DegreesToRadians(point2.X);
+
+            var deltaLat = lat2Rad - lat1Rad;
+            var deltaLon = lon2Rad - lon1Rad;
+
+            var a = Math.Sin(deltaLat / 2) * Math.Sin(deltaLat / 2) +
+                    Math.Cos(lat1Rad) * Math.Cos(lat2Rad) *
+                    Math.Sin(deltaLon / 2) * Math.Sin(deltaLon / 2);
+
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+            return EarthRadiusKm * c;
+        }
+
+        public int CalculateEstimatedDurationInMinutes(Point point1, Point point2, double averageSpeedKph = 70)
+        {
+            if (averageSpeedKph <= 0)
+                throw new ArgumentOutOfRangeException(nameof(averageSpeedKph), "Average speed must be positive.");
+
+            var distanceKm = CalculateDistanceInKilometers(point1, point2);
+            var durationHours = distanceKm / averageSpeedKph;
+            return (int)Math.Round(durationHours * 60);
+        }
+
+        public LineString CreateLineString(IEnumerable<Point> points)
+        {
+            if (points == null || !points.Any())
+                // Or return _geometryFactory.CreateLineString((Coordinate[])null); if empty linestring is preferred
+                throw new ArgumentNullException(nameof(points), "Points collection cannot be null or empty.");
+
+            var coordinates = points.Select(p =>
+            {
+                if (p == null) throw new ArgumentException("Point collection contains null points.");
+                return p.Coordinate;
+            }).ToArray();
+            
+            return _geometryFactory.CreateLineString(coordinates);
+        }
+
+        private static double DegreesToRadians(double degrees)
+        {
+            return degrees * Math.PI / 180.0;
         }
     }
 }
