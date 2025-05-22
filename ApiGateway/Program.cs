@@ -217,7 +217,8 @@ app.MapGet("/health/aggregate", async () =>
     var servicesToCheck = new[]
     {
         new { Name = "UserService", Url = builder.Configuration["Services:UserService:BaseUrl"] + "/health" ?? "https://localhost:2999/health" },
-        new { Name = "TruckService", Url = builder.Configuration["Services:TruckService:BaseUrl"] + "/health" ?? "https://localhost:7198/health" }
+        new { Name = "TruckService", Url = builder.Configuration["Services:TruckService:BaseUrl"] + "/health" ?? "https://localhost:7198/health" },
+        new { Name = "RouteService", Url = builder.Configuration["Services:RouteService:BaseUrl"] + "/health" ?? "http://localhost:5003/health" }
     };
     
     foreach (var svc in servicesToCheck)

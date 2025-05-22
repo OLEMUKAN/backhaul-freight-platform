@@ -56,12 +56,8 @@ try
     
     // Database
     builder.Services.AddDbContext<TruckDbContext>(options =>
-        options.UseSqlServer(
-            builder.Configuration.GetConnectionString("DefaultConnection"),
-            sqlOptions => sqlOptions.EnableRetryOnFailure(
-                maxRetryCount: 10, 
-                maxRetryDelay: TimeSpan.FromSeconds(30), 
-                errorNumbersToAdd: null)));
+        options.UseNpgsql(
+            builder.Configuration.GetConnectionString("DefaultConnection")));
     
     // Azure Storage for truck photos and documents
     builder.Services.AddAzureClients(clientBuilder =>

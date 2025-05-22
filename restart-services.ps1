@@ -11,6 +11,6 @@ if ($dotnetProcesses) {
 
 # Run the services using the existing script
 Write-Host "Starting services with fixed configuration..." -ForegroundColor Green
-& .\run-services.ps1 -Services "UserService", "TruckService", "ApiGateway"
+& .\run-services.ps1 -Services "UserService", "TruckService", "RouteService", "ApiGateway"
 
 Write-Host "Services started. Check the logs for any errors." -ForegroundColor Green 

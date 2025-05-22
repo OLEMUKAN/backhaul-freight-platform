@@ -53,7 +53,7 @@ try
 
     // DB Context
     builder.Services.AddDbContext<UserDbContext>(options =>
-        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
     // Identity
     builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>

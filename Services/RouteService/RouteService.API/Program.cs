@@ -12,7 +12,13 @@ using RouteService.API; // For MappingProfile
 using RouteService.API.Consumers; // For MassTransit Consumers
 using RouteService.API.Middleware; // For GlobalExceptionHandlerMiddleware
 
-var builder = WebApplication.CreateBuilder(args);
+namespace RouteService.API;
+
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -163,11 +169,8 @@ app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
+                app.MapControllers();
 
-app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+        app.Run();
+    }
 }

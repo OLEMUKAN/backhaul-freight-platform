@@ -79,6 +79,18 @@ namespace ApiGateway.Controllers
                     Methods = new[] { "GET" },
                     RequiresAuth = true,
                     IsAggregated = true
+                },
+                new {
+                    Path = "/api/routes/**",
+                    Service = "RouteService",
+                    Methods = new[] { "GET", "POST", "PUT", "DELETE" },
+                    RequiresAuth = true
+                },
+                new {
+                    Path = "/api/routes/{id}/capacity",
+                    Service = "RouteService",
+                    Methods = new[] { "PUT" },
+                    RequiresAuth = true
                 }
             };
 

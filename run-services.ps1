@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 $servicePaths = @{
     "UserService" = "Services\UserService\UserService.API\UserService.API.csproj"
     "TruckService" = "Services\TruckService\TruckService.API\TruckService.API.csproj"
+    "RouteService" = "Services\RouteService\RouteService.API\RouteService.API.csproj"
     "ApiGateway" = "ApiGateway\ApiGateway.csproj"
 }
 
@@ -19,19 +20,20 @@ $sharedLibraries = @(
     "SharedLibraries\MessageContracts\MessageContracts.csproj"
 )
 
-# Default to all three services if none specified
+# Default to all services if none specified
 if ($Services.Count -eq 0) {
     # Start the services in the proper order - microservices first, then API gateway
-    $Services = @("UserService", "TruckService", "ApiGateway")
+    $Services = @("UserService", "TruckService", "RouteService", "ApiGateway")
 }
 
 # If all services are selected and the order wasn't explicitly specified,
 # make sure they're started in the optimal order
-if ($Services.Count -eq 3 -and 
+if ($Services.Count -eq 4 -and 
     $Services -contains "UserService" -and 
     $Services -contains "TruckService" -and 
+    $Services -contains "RouteService" -and 
     $Services -contains "ApiGateway") {
-    $Services = @("UserService", "TruckService", "ApiGateway")
+    $Services = @("UserService", "TruckService", "RouteService", "ApiGateway")
 }
 
 # Check if services exist
