@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Builder;
 
-namespace TruckService.API.Middleware
+namespace Common.Middleware
 {
     public static class MiddlewareExtensions
     {
-        public static IApplicationBuilder UseTruckServiceExceptionHandling(this IApplicationBuilder builder)
+        public static IApplicationBuilder UseExceptionHandling(this IApplicationBuilder builder)
         {
             return builder.UseMiddleware<ExceptionHandlingMiddleware>();
         }
     }
-}
+} 

@@ -6,17 +6,17 @@ namespace MessageContracts.Events.User
     public class UserVerifiedEvent : UserEventBase
     {
         /// <summary>
-        /// Whether the user has been verified
+        /// Whether the user's email has been confirmed.
         /// </summary>
-        public bool IsVerified { get; set; }
+        public bool IsEmailConfirmed { get; set; }
+
+        /// <summary>
+        /// Whether the user's phone has been confirmed.
+        /// </summary>
+        public bool IsPhoneConfirmed { get; set; }
         
         /// <summary>
-        /// Optional notes about the verification
-        /// </summary>
-        public string? VerificationNotes { get; set; }
-        
-        /// <summary>
-        /// When the verification status was changed
+        /// When the verification status was changed/confirmed.
         /// </summary>
         public DateTimeOffset VerifiedAt { get; set; } = DateTimeOffset.UtcNow;
     }

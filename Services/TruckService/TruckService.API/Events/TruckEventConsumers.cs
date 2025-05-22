@@ -1,35 +1,27 @@
 using MassTransit;
-using MessageContracts.Events.User;
+using MessageContracts.Events.User; // This already exists
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
 using TruckService.API.Data;
 using Microsoft.EntityFrameworkCore;
+using Common.Messaging; // Added for IEventPublisher
+using MessageContracts.Events.Truck; // Added for TruckStatusUpdatedEvent
+using MessageContracts.Enums; // Added for UserStatus enum
 
 namespace TruckService.API.Events
 {
-    // Define event classes from other services that TruckService will consume
-    // These should match the event contracts from those services
-    
-    public class UserStatusChangedEvent
-    {
-        public Guid UserId { get; set; }
-        public int PreviousStatus { get; set; }
-        public int NewStatus { get; set; }
-        public DateTimeOffset Timestamp { get; set; }
-    }
-    
     // Consumer classes for external events
 
-    public class UserStatusChangedConsumer : IConsumer<UserStatusChangedEvent>
+    public class UserStatusChangedConsumer : IConsumer<MessageContracts.Events.User.UserStatusChangedEvent> // Changed to use MessageContracts event
     {
         private readonly TruckDbContext _dbContext;
-        private readonly IEventPublisher _eventPublisher;
+        private readonly IEventPublisher _eventPublisher; // This will be Common.Messaging.IEventPublisher via DI
         private readonly ILogger<UserStatusChangedConsumer> _logger;
 
         public UserStatusChangedConsumer(
             TruckDbContext dbContext,
-            IEventPublisher eventPublisher,
+            IEventPublisher eventPublisher, // This will be Common.Messaging.IEventPublisher via DI
             ILogger<UserStatusChangedConsumer> logger)
         {
             _dbContext = dbContext;
@@ -37,7 +29,7 @@ namespace TruckService.API.Events
             _logger = logger;
         }
 
-        public async Task Consume(ConsumeContext<UserStatusChangedEvent> context)
+        public async Task Consume(ConsumeContext<MessageContracts.Events.User.UserStatusChangedEvent> context) // Changed to use MessageContracts event
         {
             var message = context.Message;
             _logger.LogInformation("Consuming UserStatusChanged event for UserId: {UserId}, New Status: {NewStatus}", 
@@ -46,7 +38,7 @@ namespace TruckService.API.Events
             try
             {
                 // If user is suspended/inactive (Status 2 or 3), mark their trucks as inactive
-                if (message.NewStatus == 2 || message.NewStatus == 3) // Inactive or Suspended
+                if (message.NewStatus == UserStatus.Inactive || message.NewStatus == UserStatus.Suspended) // Changed to use UserStatus enum
                 {
                     var userTrucks = await _dbContext.Trucks
                         .Where(t => t.OwnerId == message.UserId && t.Status == 1) // Active trucks
@@ -64,7 +56,7 @@ namespace TruckService.API.Events
                             truck.UpdatedAt = DateTimeOffset.UtcNow;
                             
                             // Publish event for each truck status change
-                            await _eventPublisher.PublishTruckStatusUpdatedAsync(new MessageContracts.Events.Truck.TruckStatusUpdatedEvent
+                            await _eventPublisher.PublishAsync(new MessageContracts.Events.Truck.TruckStatusUpdatedEvent // Changed to PublishAsync
                             {
                                 TruckId = truck.Id,
                                 OwnerId = truck.OwnerId,

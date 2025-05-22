@@ -8,7 +8,7 @@ using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace UserService.API.Middleware
+namespace Common.Middleware
 {
     public class ExceptionHandlingMiddleware
     {

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
 
-namespace UserService.API.Services
+namespace Common.Messaging
 {
     public class EventPublisher : IEventPublisher
     {

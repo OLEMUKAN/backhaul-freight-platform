@@ -6,7 +6,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using UserService.API.Events;
+using Common.Messaging; // Added for IEventPublisher
+using MessageContracts.Events.User; // Added for UserXXXEvent types
+// UserService.API.Events; // Removed, assuming event DTOs are from MessageContracts
+// using UserService.API.Services; // No longer needed for IEventPublisher
 using UserService.API.Models;
 using UserService.API.Models.Dtos;
 using UserService.API.Models.Enums;
@@ -75,7 +78,7 @@ namespace UserService.API.Services
                 UserId = user.Id,
                 Email = user.Email ?? string.Empty,
                 Name = user.Name,
-                Role = user.Role
+                Role = (MessageContracts.Enums.UserRole)user.Role // Casted
             });
 
             // TODO: Send verification email - will be implemented in notification service
@@ -124,7 +127,7 @@ namespace UserService.API.Services
             {
                 UserId = user.Id,
                 Email = user.Email ?? string.Empty,
-                Role = user.Role
+                Role = (MessageContracts.Enums.UserRole)user.Role // Casted
             };
 
             // Update user properties
@@ -199,9 +202,9 @@ namespace UserService.API.Services
             {
                 UserId = user.Id,
                 Email = user.Email ?? string.Empty,
-                Role = user.Role,
-                PreviousStatus = previousStatus,
-                NewStatus = user.Status
+                Role = (MessageContracts.Enums.UserRole)user.Role, // Casted
+                PreviousStatus = (MessageContracts.Enums.UserStatus)previousStatus, // Casted
+                NewStatus = (MessageContracts.Enums.UserStatus)user.Status // Casted
             });
 
             return true;
@@ -251,9 +254,9 @@ namespace UserService.API.Services
                     {
                         UserId = user.Id,
                         Email = user.Email ?? string.Empty,
-                        Role = user.Role,
-                        IsPhoneVerified = true,
-                        IsEmailVerified = user.IsEmailConfirmed
+                        Role = (MessageContracts.Enums.UserRole)user.Role, // Casted
+                        IsPhoneConfirmed = true, // Corrected property name
+                        IsEmailConfirmed = user.IsEmailConfirmed // Corrected property name
                     });
                 }
 
@@ -290,11 +293,13 @@ namespace UserService.API.Services
                     userId, previousStatus, newStatus);
                     
                 // Publish status changed event
-                await _eventPublisher.PublishAsync(new Events.UserStatusChangedEvent
+                await _eventPublisher.PublishAsync(new UserStatusChangedEvent // Removed Events. qualifier
                 {
                     UserId = userId,
-                    PreviousStatus = previousStatus,
-                    NewStatus = newStatus
+                    Email = user.Email ?? string.Empty, // Added Email assignment
+                    Role = (MessageContracts.Enums.UserRole)user.Role, // Added Role assignment and cast
+                    PreviousStatus = (MessageContracts.Enums.UserStatus)previousStatus, // Casted
+                    NewStatus = (MessageContracts.Enums.UserStatus)newStatus // Casted
                 });
                 
                 return true;

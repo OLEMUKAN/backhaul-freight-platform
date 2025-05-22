@@ -8,6 +8,11 @@ using ServiceDiscovery;
 
 namespace TruckService.API.Controllers
 {
+    // TODO: Tech Debt - This controller is duplicated in UserService.API.
+    // Consider refactoring into a shared library or NuGet package if this functionality
+    // needs to be consistently exposed across multiple services.
+    // Alternatively, evaluate if these endpoints are necessary in individual services
+    // if the API Gateway is the primary consumer of IServiceRegistry.
     [Route("api/[controller]")]
     [ApiController]
     public class ServiceDiscoveryController : ControllerBase
