@@ -6,17 +6,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>    <PackageReference Include="AutoMapper" Version="14.0.0" />
+  <ItemGroup>    
+    <PackageReference Include="AutoMapper" Version="14.0.0" />
     <PackageReference Include="MassTransit" Version="8.2.0" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.6" /> <!-- Downgraded -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.6" /> <!-- Downgraded -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.6"> <!-- Downgraded -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.6">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="7.6.0" /> <!-- Downgraded, 8.x for IdentityModel.Tokens might require .NET 9 -->    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" /> <!-- Downgraded -->
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="8.0.4" /> <!-- Downgraded -->
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="7.6.0" /> <!-- Downgraded, 8.x for IdentityModel.Tokens might require .NET 9 -->    
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.6" /> <!-- Updated -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="8.0.6" /> <!-- Updated -->
     <PackageReference Include="Polly" Version="8.5.2" /> <!-- Updated to match version in ServiceDiscovery -->
     <PackageReference Include="Serilog.AspNetCore" Version="7.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />

@@ -13,12 +13,14 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
-using RouteService.API.Dtos.Routes; // Required for DTOs
+// using RouteService.API.Dtos.Routes; // Required for DTOs
+using RouteService.API.Models.DTOs;
 using MessageContracts.Enums; // Required for RouteStatus
 using System.Collections.Generic;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.Extensions.Configuration; // For IConfiguration
+using System.Linq; // Added
 
 // Alias to avoid conflict with the namespace
 using ApiProgram = RouteService.API.Program;
@@ -105,7 +107,7 @@ namespace RouteService.Tests.ControllerTests
             var request = new CreateRouteRequest { TruckId = _sampleTruckId, OriginCoordinates = new[] { 1.0, 1.0 }, DestinationCoordinates = new[] { 2.0, 2.0 }, ScheduledDeparture = DateTimeOffset.UtcNow.AddHours(1), ScheduledArrival = DateTimeOffset.UtcNow.AddHours(2) };
             var expectedDto = new RouteDto { Id = _sampleRouteId, OwnerId = _sampleOwnerId, TruckId = _sampleTruckId, Status = RouteStatus.Planned };
             
-            _mockRouteService.Setup(s => s.CreateRouteAsync(It.IsAny<CreateRouteRequest>(), _sampleOwnerId))
+            _mockRouteService.Setup(s => s.CreateRouteAsync(It.Is<CreateRouteRequest>(r => r.TruckId == request.TruckId), It.Is<Guid>(id => id == _sampleOwnerId)))
                 .ReturnsAsync(expectedDto);
 
             var token = GenerateJwtToken(_sampleOwnerId, "TruckOwner");
@@ -120,14 +122,14 @@ namespace RouteService.Tests.ControllerTests
             Assert.NotNull(createdRoute);
             Assert.Equal(_sampleRouteId, createdRoute.Id);
             Assert.Equal($"/api/routes/{_sampleRouteId}", response.Headers.Location?.OriginalString);
-            _mockRouteService.Verify(s => s.CreateRouteAsync(It.IsAny<CreateRouteRequest>(), _sampleOwnerId), Times.Once);
+            _mockRouteService.Verify(s => s.CreateRouteAsync(It.Is<CreateRouteRequest>(r => r.TruckId == request.TruckId), It.Is<Guid>(id => id == _sampleOwnerId)), Times.Once);
         }
 
         [Fact]
         public async Task CreateRoute_ServiceThrowsArgumentException_ReturnsBadRequest()
         {
             var request = new CreateRouteRequest { TruckId = _sampleTruckId }; // Potentially invalid
-            _mockRouteService.Setup(s => s.CreateRouteAsync(It.IsAny<CreateRouteRequest>(), _sampleOwnerId))
+            _mockRouteService.Setup(s => s.CreateRouteAsync(It.Is<CreateRouteRequest>(r => r.TruckId == request.TruckId), It.Is<Guid>(id => id == _sampleOwnerId)))
                 .ThrowsAsync(new ArgumentException("Test argument exception"));
             
             var token = GenerateJwtToken(_sampleOwnerId, "TruckOwner");
@@ -168,7 +170,7 @@ namespace RouteService.Tests.ControllerTests
         public async Task GetRouteById_RouteExists_ReturnsOkWithRouteDto()
         {
             var expectedDto = new RouteDto { Id = _sampleRouteId, OwnerId = _sampleOwnerId };
-            _mockRouteService.Setup(s => s.GetRouteByIdAsync(_sampleRouteId)).ReturnsAsync(expectedDto);
+            _mockRouteService.Setup(s => s.GetRouteByIdAsync(It.Is<Guid>(id => id == _sampleRouteId))).ReturnsAsync(expectedDto);
 
             var response = await _client.GetAsync($"/api/routes/{_sampleRouteId}");
 
@@ -210,7 +212,7 @@ namespace RouteService.Tests.ControllerTests
             var updateRequest = new UpdateRouteRequest { Notes = "Updated note" };
             var updatedDto = new RouteDto { Id = _sampleRouteId, OwnerId = _sampleOwnerId, Notes = "Updated note" };
 
-            _mockRouteService.Setup(s => s.UpdateRouteAsync(_sampleRouteId, It.IsAny<UpdateRouteRequest>(), _sampleOwnerId))
+            _mockRouteService.Setup(s => s.UpdateRouteAsync(It.Is<Guid>(id => id == _sampleRouteId), It.Is<UpdateRouteRequest>(r => r.Notes == updateRequest.Notes), It.Is<Guid>(id => id == _sampleOwnerId)))
                 .ReturnsAsync(updatedDto);
 
             var token = GenerateJwtToken(_sampleOwnerId, "TruckOwner");
@@ -228,7 +230,7 @@ namespace RouteService.Tests.ControllerTests
         public async Task UpdateRoute_ServiceReturnsNull_ReturnsNotFound()
         {
             var updateRequest = new UpdateRouteRequest { Notes = "Updated note" };
-            _mockRouteService.Setup(s => s.UpdateRouteAsync(It.IsAny<Guid>(), It.IsAny<UpdateRouteRequest>(), _sampleOwnerId))
+            _mockRouteService.Setup(s => s.UpdateRouteAsync(It.IsAny<Guid>(), It.IsAny<UpdateRouteRequest>(), It.Is<Guid>(id => id == _sampleOwnerId)))
                 .ReturnsAsync((RouteDto)null);
 
             var token = GenerateJwtToken(_sampleOwnerId, "TruckOwner");
@@ -242,7 +244,7 @@ namespace RouteService.Tests.ControllerTests
         [Fact]
         public async Task CancelRoute_ValidRequest_ReturnsNoContent()
         {
-            _mockRouteService.Setup(s => s.CancelRouteAsync(_sampleRouteId, _sampleOwnerId)).ReturnsAsync(true);
+            _mockRouteService.Setup(s => s.CancelRouteAsync(It.Is<Guid>(id => id == _sampleRouteId), It.Is<Guid>(id => id == _sampleOwnerId))).ReturnsAsync(true);
             var token = GenerateJwtToken(_sampleOwnerId, "TruckOwner");
             _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -254,7 +256,7 @@ namespace RouteService.Tests.ControllerTests
         [Fact]
         public async Task CancelRoute_ServiceReturnsFalse_ReturnsNotFound()
         {
-            _mockRouteService.Setup(s => s.CancelRouteAsync(It.IsAny<Guid>(), _sampleOwnerId)).ReturnsAsync(false);
+            _mockRouteService.Setup(s => s.CancelRouteAsync(It.IsAny<Guid>(), It.Is<Guid>(id => id == _sampleOwnerId))).ReturnsAsync(false);
             var token = GenerateJwtToken(_sampleOwnerId, "TruckOwner");
             _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -269,7 +271,7 @@ namespace RouteService.Tests.ControllerTests
             var capacityRequest = new UpdateRouteCapacityRequest { CapacityChangeKg = -100m };
             var updatedDto = new RouteDto { Id = _sampleRouteId, CapacityAvailableKg = 900m };
 
-            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(_sampleRouteId, It.IsAny<UpdateRouteCapacityRequest>()))
+            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(It.Is<Guid>(id => id == _sampleRouteId), It.Is<UpdateRouteCapacityRequest>(r => r.CapacityChangeKg == capacityRequest.CapacityChangeKg)))
                 .ReturnsAsync(updatedDto);
 
             var token = GenerateJwtToken(_sampleAdminId, "Admin"); // Using Admin role as per policy

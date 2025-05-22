@@ -5,6 +5,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -363,7 +364,7 @@ namespace RouteService.Tests.ServiceTests
                 x => x.Log(
                     LogLevel.Error,
                     It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.toString().Contains("HTTP request exception during GetTruckCapacityAsync")),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("HTTP request exception during GetTruckCapacityAsync")),
                     It.IsAny<HttpRequestException>(),
                     It.IsAny<Func<It.IsAnyType, Exception, string>>()),
                 Times.Once);

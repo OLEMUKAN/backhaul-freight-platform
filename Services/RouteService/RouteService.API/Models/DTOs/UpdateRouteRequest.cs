@@ -66,6 +66,31 @@ namespace RouteService.API.Models.DTOs
         public int? Status { get; set; }
         
         /// <summary>
+        /// Additional notes for the route
+        /// </summary>
+        public string? Notes { get; set; }
+
+        /// <summary>
+        /// Alias for DepartureTime
+        /// </summary>
+        [JsonIgnore]
+        public DateTimeOffset? ScheduledDeparture
+        {
+            get => DepartureTime;
+            set => DepartureTime = value;
+        }
+
+        /// <summary>
+        /// Alias for ArrivalTime
+        /// </summary>
+        [JsonIgnore]
+        public DateTimeOffset? ScheduledArrival
+        {
+            get => ArrivalTime;
+            set => ArrivalTime = value;
+        }
+        
+        /// <summary>
         /// Validate that the request has at least one field to update
         /// </summary>
         public bool HasChanges()
@@ -112,4 +137,4 @@ namespace RouteService.API.Models.DTOs
             return true;
         }
     }
-} 
+}

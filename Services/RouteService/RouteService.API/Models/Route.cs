@@ -123,5 +123,24 @@ namespace RouteService.API.Models
         /// When the route was last updated
         /// </summary>
         public DateTimeOffset UpdatedAt { get; set; }
+
+        /// <summary>
+        /// Additional notes for the route
+        /// </summary>
+        public string? Notes { get; set; }
+
+        [JsonIgnore]
+        public DateTimeOffset ScheduledDeparture
+        {
+            get => DepartureTime;
+            set => DepartureTime = value;
+        }
+
+        [JsonIgnore]
+        public DateTimeOffset ScheduledArrival
+        {
+            get => ArrivalTime;
+            set => ArrivalTime = value;
+        }
     }
-} 
+}

@@ -142,10 +142,10 @@ namespace RouteService.Tests.ServiceTests
             _mockBus.Verify(b => b.Publish(It.IsAny<RouteCapacityChangedEvent>(), It.IsAny<CancellationToken>()), Times.Once);
             Assert.NotNull(publishedEvent);
             Assert.Equal(routeId, publishedEvent.RouteId);
-            Assert.Equal(prevKg, publishedEvent.PreviousAvailableCapacityKg);
-            Assert.Equal(newKg, publishedEvent.NewAvailableCapacityKg);
-            Assert.Equal(prevM3, publishedEvent.PreviousAvailableCapacityM3);
-            Assert.Equal(newM3, publishedEvent.NewAvailableCapacityM3);
+            Assert.Equal(prevKg, publishedEvent.PreviousCapacityAvailableKg);
+            Assert.Equal(newKg, publishedEvent.NewCapacityAvailableKg);
+            Assert.Equal(prevM3, publishedEvent.PreviousCapacityAvailableM3);
+            Assert.Equal(newM3, publishedEvent.NewCapacityAvailableM3);
             Assert.True((DateTime.UtcNow - publishedEvent.Timestamp).TotalSeconds < 5);
 
             _mockLogger.Verify(
@@ -180,10 +180,10 @@ namespace RouteService.Tests.ServiceTests
             _mockBus.Verify(b => b.Publish(It.IsAny<RouteCapacityChangedEvent>(), It.IsAny<CancellationToken>()), Times.Once);
             Assert.NotNull(publishedEvent);
             Assert.Equal(routeId, publishedEvent.RouteId);
-            Assert.Equal(prevKg, publishedEvent.PreviousAvailableCapacityKg);
-            Assert.Equal(newKg, publishedEvent.NewAvailableCapacityKg);
-            Assert.Null(publishedEvent.PreviousAvailableCapacityM3);
-            Assert.Null(publishedEvent.NewAvailableCapacityM3);
+            Assert.Equal(prevKg, publishedEvent.PreviousCapacityAvailableKg);
+            Assert.Equal(newKg, publishedEvent.NewCapacityAvailableKg);
+            Assert.Null(publishedEvent.PreviousCapacityAvailableM3);
+            Assert.Null(publishedEvent.NewCapacityAvailableM3);
             Assert.True((DateTime.UtcNow - publishedEvent.Timestamp).TotalSeconds < 5);
 
             _mockLogger.Verify(

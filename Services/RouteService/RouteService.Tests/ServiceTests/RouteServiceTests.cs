@@ -129,7 +129,7 @@ namespace RouteService.Tests.ServiceTests
             Assert.NotNull(result);
             Assert.Equal(ownerId, result.OwnerId);
             Assert.Equal(truckId, result.TruckId);
-            Assert.Equal(RouteStatus.Planned, result.Status);
+            Assert.Equal((int?)RouteStatus.Planned, (int?)result.Status);
             Assert.Equal(1000m, result.TotalCapacityKg);
             Assert.Equal(50m, result.TotalCapacityM3);
             Assert.Equal(expectedDistance, result.EstimatedDistanceKm); // Specific assertion
@@ -424,21 +424,21 @@ namespace RouteService.Tests.ServiceTests
 
             _mockTruckServiceClient.Setup(ts => ts.VerifyTruckOwnershipAsync(route.TruckId, ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
             _mockEventPublisher.Setup(ep => ep.PublishRouteUpdatedEventAsync(routeId, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-            _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, RouteStatus.Planned, newStatus, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, (int?)RouteStatus.Planned, (int?)newStatus, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var result = await _routeService.UpdateRouteAsync(routeId, updateRequest, ownerId, CancellationToken.None);
 
             Assert.NotNull(result);
             Assert.Equal(newDeparture, result.ScheduledDeparture);
-            Assert.Equal(newStatus, result.Status);
+            Assert.Equal((int?)newStatus, (int?)result.Status);
 
             var updatedRouteInDb = await _dbContext.Routes.FindAsync(routeId);
             Assert.NotNull(updatedRouteInDb);
             Assert.Equal(newDeparture, updatedRouteInDb.ScheduledDeparture);
-            Assert.Equal(newStatus, updatedRouteInDb.Status);
+            Assert.Equal((int?)newStatus, (int?)updatedRouteInDb.Status);
 
             _mockEventPublisher.Verify(ep => ep.PublishRouteUpdatedEventAsync(routeId, It.IsAny<CancellationToken>()), Times.Once);
-            _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, RouteStatus.Planned, newStatus, It.IsAny<CancellationToken>()), Times.Once);
+            _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, (int?)RouteStatus.Planned, (int?)newStatus, It.IsAny<CancellationToken>()), Times.Once);
         }
         
         [Fact]
@@ -474,16 +474,16 @@ namespace RouteService.Tests.ServiceTests
             var capacityChangeRequest = new UpdateRouteCapacityRequest { CapacityChangeKg = -500m }; // Empties the truck
 
             _mockEventPublisher.Setup(ep => ep.PublishRouteCapacityChangedEventAsync(routeId, 500m, 0m, null, null, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-            _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, RouteStatus.BookedPartial, RouteStatus.BookedFull, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, (int?)RouteStatus.BookedPartial, (int?)RouteStatus.BookedFull, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var result = await _routeService.UpdateRouteCapacityAsync(routeId, capacityChangeRequest, CancellationToken.None);
 
             Assert.NotNull(result);
             Assert.Equal(0m, result.CapacityAvailableKg);
-            Assert.Equal(RouteStatus.BookedFull, result.Status);
+            Assert.Equal((int?)RouteStatus.BookedFull, (int?)result.Status);
 
             _mockEventPublisher.Verify(ep => ep.PublishRouteCapacityChangedEventAsync(routeId, 500m, 0m, null, null, It.IsAny<CancellationToken>()), Times.Once);
-            _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, RouteStatus.BookedPartial, RouteStatus.BookedFull, It.IsAny<CancellationToken>()), Times.Once);
+            _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, (int?)RouteStatus.BookedPartial, (int?)RouteStatus.BookedFull, It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Theory]
@@ -534,7 +534,7 @@ namespace RouteService.Tests.ServiceTests
                 .Returns(Task.CompletedTask);
             if (expectedFinalStatus != initialStatus)
             {
-                _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, initialStatus, expectedFinalStatus, It.IsAny<CancellationToken>()))
+                _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, (int?)initialStatus, (int?)expectedFinalStatus, It.IsAny<CancellationToken>()))
                     .Returns(Task.CompletedTask);
             }
 
@@ -550,16 +550,16 @@ namespace RouteService.Tests.ServiceTests
             {
                 Assert.Null(result.CapacityAvailableM3); // Ensure M3 remains null if TotalM3 is null
             }
-            Assert.Equal(expectedFinalStatus, result.Status);
+            Assert.Equal((int?)expectedFinalStatus, (int?)result.Status);
 
             _mockEventPublisher.Verify(ep => ep.PublishRouteCapacityChangedEventAsync(routeId, initialKg, expectedNewKg, initialM3, expectedNewM3, It.IsAny<CancellationToken>()), Times.Once);
-            if (expectedFinalStatus != initialStatus)
+            if ((int?)expectedFinalStatus != (int?)initialStatus)
             {
-                _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, initialStatus, expectedFinalStatus, It.IsAny<CancellationToken>()), Times.Once);
+                _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, (int?)initialStatus, (int?)expectedFinalStatus, It.IsAny<CancellationToken>()), Times.Once);
             }
             else
             {
-                _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, It.IsAny<RouteStatus>(), It.IsAny<RouteStatus>(), It.IsAny<CancellationToken>()), Times.Never);
+                _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
             }
         }
 
@@ -575,14 +575,14 @@ namespace RouteService.Tests.ServiceTests
             await _dbContext.SaveChangesAsync();
 
             _mockTruckServiceClient.Setup(ts => ts.VerifyTruckOwnershipAsync(route.TruckId, ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-            _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, RouteStatus.Planned, RouteStatus.Cancelled, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, (int?)RouteStatus.Planned, (int?)RouteStatus.Cancelled, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var success = await _routeService.CancelRouteAsync(routeId, ownerId, CancellationToken.None);
 
             Assert.True(success);
             var cancelledRoute = await _dbContext.Routes.FindAsync(routeId);
-            Assert.Equal(RouteStatus.Cancelled, cancelledRoute.Status);
-            _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, RouteStatus.Planned, RouteStatus.Cancelled, It.IsAny<CancellationToken>()), Times.Once);
+            Assert.Equal((int?)RouteStatus.Cancelled, (int?)cancelledRoute.Status);
+            _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, (int?)RouteStatus.Planned, (int?)RouteStatus.Cancelled, It.IsAny<CancellationToken>()), Times.Once);
         }
         
         [Fact]
@@ -599,7 +599,7 @@ namespace RouteService.Tests.ServiceTests
             var success = await _routeService.CancelRouteAsync(routeId, ownerId, CancellationToken.None);
 
             Assert.True(success);
-            _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(It.IsAny<Guid>(), It.IsAny<RouteStatus>(), It.IsAny<RouteStatus>(), It.IsAny<CancellationToken>()), Times.Never);
+            _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
         }
     }
 }

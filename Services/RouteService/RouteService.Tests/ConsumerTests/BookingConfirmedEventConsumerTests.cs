@@ -3,7 +3,7 @@ using MassTransit.Testing;
 using Microsoft.Extensions.Logging;
 using Moq;
 using RouteService.API.Consumers;
-using RouteService.API.Dtos.Routes;
+// using RouteService.API.Dtos.Routes;
 using RouteService.API.Services.Interfaces;
 using MessageContracts.Events.Booking;
 using System;
@@ -13,6 +13,7 @@ using Xunit;
 using Microsoft.EntityFrameworkCore; // For InMemory DbContext
 using RouteService.API.Data; // For RouteDbContext
 using RouteService.API.Models; // For ProcessedEvent
+using RouteService.API.Models.DTOs;
 
 namespace RouteService.Tests.ConsumerTests
 {
