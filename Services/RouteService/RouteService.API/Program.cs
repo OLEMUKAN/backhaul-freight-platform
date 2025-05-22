@@ -47,9 +47,9 @@ builder.Services.AddMassTransit(mt =>
             cfg.UseMessageRetry(r => 
             {
                 r.Incremental(
-                    retryLimit: 5, 
-                    initialInterval: TimeSpan.FromSeconds(1), 
-                    increment: TimeSpan.FromSeconds(2) 
+                    retryLimit: 5,
+                    initialInterval: TimeSpan.FromSeconds(1),
+                    intervalIncrement: TimeSpan.FromSeconds(2)
                 );
                 // For now, no specific exception filters are added, making it a general retry.
                 // Example for future: r.Handle<System.Net.Http.HttpRequestException>();

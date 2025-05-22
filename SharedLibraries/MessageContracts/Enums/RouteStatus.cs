@@ -1,6 +1,5 @@
 namespace MessageContracts.Enums
-{
-    /// <summary>
+{    /// <summary>
     /// Represents the possible statuses of a route
     /// </summary>
     public enum RouteStatus
@@ -19,6 +18,11 @@ namespace MessageContracts.Enums
         /// Route has been completed
         /// </summary>
         Completed = 3,
+        
+        /// <summary>
+        /// Route is in progress
+        /// </summary>
+        InProgress = 7,
         
         /// <summary>
         /// Route has been cancelled

@@ -1,13 +1,10 @@
 using MassTransit;
-using Microsoft.Extensions.Logging;
 using RouteService.API.Services.Interfaces;
-using MessageContracts.Events.Booking; // Assuming this is the correct namespace
-using System.Threading.Tasks;
-using RouteService.API.Dtos.Routes; // For UpdateRouteCapacityRequest
-using System;
 using RouteService.API.Data; // For RouteDbContext
 using Microsoft.EntityFrameworkCore; // For AnyAsync
-using RouteService.API.Models; // For ProcessedEvent
+using RouteService.API.Models;
+using RouteService.API.Models.DTOs;
+using MessageContracts.Events.Booking; // For ProcessedEvent
 
 namespace RouteService.API.Consumers
 {
@@ -40,13 +37,11 @@ namespace RouteService.API.Consumers
             }
 
             _logger.LogInformation("Processing BookingConfirmedEvent for BookingId: {BookingId}. Reducing capacity for RouteId: {RouteId}.",
-                bookingId, message.RouteId);
-
-            var updateCapacityRequest = new UpdateRouteCapacityRequest
+                bookingId, message.RouteId);            var updateCapacityRequest = new UpdateRouteCapacityRequest
             {
                 BookingId = bookingId,
                 CapacityChangeKg = -message.BookedWeightKg, // Negative: capacity consumed
-                CapacityChangeM3 = message.BookedVolumeM3.HasValue ? -message.BookedVolumeM3.Value : (decimal?)null, // Negative
+                CapacityChangeM3 = -message.BookedVolumeM3, // Negative
                 Reason = $"Booking {bookingId} confirmed."
             };
 

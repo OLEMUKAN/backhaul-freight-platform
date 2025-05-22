@@ -58,17 +58,15 @@ namespace RouteService.API.Services
             await _bus.Publish(eventMessage, cancellationToken);
             _logger.LogInformation("Published RouteStatusUpdatedEvent for RouteId: {RouteId}. PreviousStatus: {PreviousStatus}, NewStatus: {NewStatus}", 
                 routeId, previousStatus, newStatus); // Log message updated to reflect property name change
-        }
-
-        public async Task PublishRouteCapacityChangedEventAsync(Guid routeId, decimal previousAvailableKg, decimal newAvailableKg, decimal? previousAvailableM3, decimal? newAvailableM3, CancellationToken cancellationToken = default)
+        }        public async Task PublishRouteCapacityChangedEventAsync(Guid routeId, decimal previousAvailableKg, decimal newAvailableKg, decimal? previousAvailableM3, decimal? newAvailableM3, CancellationToken cancellationToken = default)
         {
             var eventMessage = new RouteCapacityChangedEvent
             {
                 RouteId = routeId,
-                PreviousAvailableCapacityKg = previousAvailableKg,
-                NewAvailableCapacityKg = newAvailableKg,
-                PreviousAvailableCapacityM3 = previousAvailableM3,
-                NewAvailableCapacityM3 = newAvailableM3,
+                PreviousCapacityAvailableKg = previousAvailableKg,
+                NewCapacityAvailableKg = newAvailableKg,
+                PreviousCapacityAvailableM3 = previousAvailableM3,
+                NewCapacityAvailableM3 = newAvailableM3,
                 Timestamp = DateTime.UtcNow
             };
 

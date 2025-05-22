@@ -1,12 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using RouteService.API.Dtos.Routes;
+using RouteService.API.Models.DTOs;
 using RouteService.API.Services.Interfaces;
-using System;
 using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace RouteService.API.Controllers
 {

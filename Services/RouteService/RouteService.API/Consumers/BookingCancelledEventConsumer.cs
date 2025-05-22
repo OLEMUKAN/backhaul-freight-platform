@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using RouteService.API.Services.Interfaces;
 using MessageContracts.Events.Booking; // Assuming this is the correct namespace
 using System.Threading.Tasks;
-using RouteService.API.Dtos.Routes; // For UpdateRouteCapacityRequest
+using RouteService.API.Models.DTOs; // For UpdateRouteCapacityRequest
 using System;
 using RouteService.API.Data; // For RouteDbContext
 using Microsoft.EntityFrameworkCore; // For AnyAsync

@@ -3,8 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using RouteService.API.Data;
-using RouteService.API.Dtos.Routes;
-using RouteService.API.Models.Routes;
 using RouteService.API.Services.Interfaces;
 using MessageContracts.Enums; // For RouteStatus
 using System;
@@ -13,6 +11,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using RouteService.API.Models;
+using RouteService.API.Models.DTOs;
 
 namespace RouteService.API.Services
 {
@@ -40,15 +40,13 @@ namespace RouteService.API.Services
             _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
-
-        public async Task<RouteDto> CreateRouteAsync(CreateRouteRequest request, Guid ownerId, CancellationToken cancellationToken = default)
+        }        public async Task<RouteDto> CreateRouteAsync(CreateRouteRequest request, Guid ownerId, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Attempting to create route for Owner: {OwnerId}, Truck: {TruckId}", ownerId, request.TruckId);
-
+            
             if (!request.AreTimesValid())
             {
-                _logger.LogWarning("Invalid times provided for route creation by Owner: {OwnerId}. Departure: {Departure}, Arrival: {Arrival}", ownerId, request.ScheduledDeparture, request.ScheduledArrival);
+                _logger.LogWarning("Invalid times provided for route creation by Owner: {OwnerId}. Departure: {Departure}, Arrival: {Arrival}", ownerId, request.DepartureTime, request.ArrivalTime);
                 throw new ArgumentException("Departure time must be before arrival time and both must be in the future.");
             }
             if (!request.AreCoordinatesValid())
@@ -60,7 +58,7 @@ namespace RouteService.API.Services
             // AutoMapper will use IGeospatialService from its context if configured that way,
             // otherwise, manual creation before mapping or custom resolver needed.
             // Assuming MappingProfile is set up to use IGeospatialService via context.
-            var route = _mapper.Map<Route>(request, opts => opts.Items["GeospatialService"] = _geospatialService);
+            var route = _mapper.Map<Models.Route>(request, opts => opts.Items["GeospatialService"] = _geospatialService);
             route.OwnerId = ownerId;
 
             // Points are created by AutoMapper via MappingProfile
@@ -123,13 +121,12 @@ namespace RouteService.API.Services
                 for (int i = 0; i < route.GeometryPath.Coordinates.Length - 1; i++)
                 {
                     var p1 = _geospatialService.CreatePoint(route.GeometryPath.Coordinates[i].X, route.GeometryPath.Coordinates[i].Y);
-                    var p2 = _geospatialService.CreatePoint(route.GeometryPath.Coordinates[i + 1].X, route.GeometryPath.Coordinates[i + 1].Y);
-                    route.EstimatedDistanceKm += _geospatialService.CalculateDistanceInKilometers(p1, p2);
+                    var p2 = _geospatialService.CreatePoint(route.GeometryPath.Coordinates[i + 1].X, route.GeometryPath.Coordinates[i + 1].Y);                    route.EstimatedDistanceKm += (decimal)_geospatialService.CalculateDistanceInKilometers(p1, p2);
                 }
             }
             
             route.EstimatedDistanceKm = Math.Round(route.EstimatedDistanceKm, 2);
-            route.EstimatedDurationMinutes = (int)Math.Round(route.EstimatedDistanceKm / DefaultAverageSpeedKph * 60);
+            route.EstimatedDurationMinutes = (int)Math.Round((double)route.EstimatedDistanceKm / DefaultAverageSpeedKph * 60);
 
             route.Id = Guid.NewGuid();
             route.Status = RouteStatus.Planned;
@@ -164,17 +161,15 @@ namespace RouteService.API.Services
             var query = _context.Routes.AsQueryable();
 
             if (filter != null)
-            {
-                if (filter.OwnerId.HasValue) query = query.Where(r => r.OwnerId == filter.OwnerId.Value);
+            {                if (filter.OwnerId.HasValue) query = query.Where(r => r.OwnerId == filter.OwnerId.Value);
                 if (filter.TruckId.HasValue) query = query.Where(r => r.TruckId == filter.TruckId.Value);
                 if (filter.IsReturnLeg.HasValue) query = query.Where(r => r.IsReturnLeg == filter.IsReturnLeg.Value);
-                if (filter.Status.HasValue) query = query.Where(r => r.Status == filter.Status.Value);
-                if (filter.MinCapacityKg.HasValue) query = query.Where(r => r.CapacityAvailableKg >= filter.MinCapacityKg.Value);
-                if (filter.MinCapacityM3.HasValue) query = query.Where(r => r.CapacityAvailableM3.HasValue && r.CapacityAvailableM3.Value >= filter.MinCapacityM3.Value);
-                if (filter.DepartAfter.HasValue) query = query.Where(r => r.ScheduledDeparture >= filter.DepartAfter.Value);
-                if (filter.DepartBefore.HasValue) query = query.Where(r => r.ScheduledDeparture <= filter.DepartBefore.Value);
-                if (filter.ArriveAfter.HasValue) query = query.Where(r => r.ScheduledArrival >= filter.ArriveAfter.Value);
-                if (filter.ArriveBefore.HasValue) query = query.Where(r => r.ScheduledArrival <= filter.ArriveBefore.Value);
+                if (filter.Status.HasValue) query = query.Where(r => r.Status == (RouteStatus)filter.Status.Value);
+                if (filter.MinCapacityKg.HasValue) query = query.Where(r => r.CapacityAvailableKg >= filter.MinCapacityKg.Value);if (filter.MinCapacityM3.HasValue) query = query.Where(r => r.CapacityAvailableM3.HasValue && r.CapacityAvailableM3.Value >= filter.MinCapacityM3.Value);
+                if (filter.DepartAfter.HasValue) query = query.Where(r => r.DepartureTime >= filter.DepartAfter.Value);
+                if (filter.DepartBefore.HasValue) query = query.Where(r => r.DepartureTime <= filter.DepartBefore.Value);
+                if (filter.ArriveAfter.HasValue) query = query.Where(r => r.ArrivalTime >= filter.ArriveAfter.Value);
+                if (filter.ArriveBefore.HasValue) query = query.Where(r => r.ArrivalTime <= filter.ArriveBefore.Value);
 
                 if (filter.NearOrigin != null && filter.NearOrigin.Length == 2 && filter.OriginRadiusKm.HasValue && filter.OriginRadiusKm.Value > 0)
                 {
@@ -280,23 +275,21 @@ namespace RouteService.API.Services
                     for (int i = 0; i < route.GeometryPath.Coordinates.Length - 1; i++)
                     {
                         var p1 = _geospatialService.CreatePoint(route.GeometryPath.Coordinates[i].X, route.GeometryPath.Coordinates[i].Y);
-                        var p2 = _geospatialService.CreatePoint(route.GeometryPath.Coordinates[i + 1].X, route.GeometryPath.Coordinates[i + 1].Y);
-                        route.EstimatedDistanceKm += _geospatialService.CalculateDistanceInKilometers(p1, p2);
+                        var p2 = _geospatialService.CreatePoint(route.GeometryPath.Coordinates[i + 1].X, route.GeometryPath.Coordinates[i + 1].Y);                        route.EstimatedDistanceKm += (decimal)_geospatialService.CalculateDistanceInKilometers(p1, p2);
                     }
                 }
                 route.EstimatedDistanceKm = Math.Round(route.EstimatedDistanceKm, 2);
-                route.EstimatedDurationMinutes = (int)Math.Round(route.EstimatedDistanceKm / DefaultAverageSpeedKph * 60);
+                route.EstimatedDurationMinutes = (int)Math.Round((double)route.EstimatedDistanceKm / DefaultAverageSpeedKph * 60);
             }
-            
-            // Validate times if they were part of the request
-            if (request.ScheduledDeparture.HasValue || request.ScheduledArrival.HasValue) {
+              // Validate times if they were part of the request
+            if (request.DepartureTime.HasValue || request.ArrivalTime.HasValue) {
                 // Create a temporary request DTO with potentially updated times to validate
                 var tempValidationRequest = new CreateRouteRequest { 
-                    ScheduledDeparture = route.ScheduledDeparture, 
-                    ScheduledArrival = route.ScheduledArrival 
+                    DepartureTime = route.DepartureTime, 
+                    ArrivalTime = route.ArrivalTime 
                 };
                 if (!tempValidationRequest.AreTimesValid()) {
-                     _logger.LogWarning("Invalid times provided for route update {RouteId}. Departure: {Departure}, Arrival: {Arrival}", id, route.ScheduledDeparture, route.ScheduledArrival);
+                     _logger.LogWarning("Invalid times provided for route update {RouteId}. Departure: {Departure}, Arrival: {Arrival}", id, route.DepartureTime, route.ArrivalTime);
                      throw new ArgumentException("Departure time must be before arrival time and both must be in the future.");
                 }
             }

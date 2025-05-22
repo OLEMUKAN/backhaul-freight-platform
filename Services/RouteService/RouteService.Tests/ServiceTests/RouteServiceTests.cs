@@ -6,8 +6,8 @@ using Moq;
 using NetTopologySuite.Geometries;
 using RouteService.API; // For MappingProfile
 using RouteService.API.Data;
-using RouteService.API.Dtos.Routes;
-using RouteService.API.Models.Routes;
+using RouteService.API.Models;
+using RouteService.API.Models.DTOs;
 using RouteService.API.Services.Interfaces; // For IRouteService and other service interfaces
 using System;
 using System.Collections.Generic;

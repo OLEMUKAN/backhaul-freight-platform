@@ -1,9 +1,7 @@
 using AutoMapper;
-using NetTopologySuite.Geometries;
-using RouteService.API.Dtos.Routes;
-using RouteService.API.Models.Routes;
+using RouteService.API.Models;
+using RouteService.API.Models.DTOs;
 using RouteService.API.Services.Interfaces;
-using System.Linq;
 using System.Text.Json;
 
 namespace RouteService.API
@@ -13,16 +11,14 @@ namespace RouteService.API
         public MappingProfile()
         {
             // For CreateRouteRequest -> Route
-            CreateMap<CreateRouteRequest, Route>()
+            CreateMap<CreateRouteRequest, Models.Route>()
                 .ForMember(dest => dest.OriginPoint, opt => opt.MapFrom((src, dest, destMember, context) => 
                     ((IGeospatialService)context.Items["GeospatialService"]).CreatePoint(src.OriginCoordinates[0], src.OriginCoordinates[1])))
                 .ForMember(dest => dest.DestinationPoint, opt => opt.MapFrom((src, dest, destMember, context) => 
                     ((IGeospatialService)context.Items["GeospatialService"]).CreatePoint(src.DestinationCoordinates[0], src.DestinationCoordinates[1])))
                 .ForMember(dest => dest.ViaPoints, opt => opt.MapFrom(src => 
-                    src.ViaPoints != null && src.ViaPoints.Any() ? JsonSerializer.Serialize(src.ViaPoints, (JsonSerializerOptions)null) : null));
-
-            // For Route -> RouteDto
-            CreateMap<Route, RouteDto>()
+                    src.ViaPoints != null && src.ViaPoints.Any() ? JsonSerializer.Serialize(src.ViaPoints, (JsonSerializerOptions)null) : null));            // For Route -> RouteDto
+            CreateMap<Models.Route, RouteDto>()
                 .ForMember(dest => dest.OriginCoordinates, opt => opt.MapFrom((src, dest, destMember, context) => 
                     ((IGeospatialService)context.Items["GeospatialService"]).PointToCoordinateArray(src.OriginPoint)))
                 .ForMember(dest => dest.DestinationCoordinates, opt => opt.MapFrom((src, dest, destMember, context) => 
@@ -30,11 +26,9 @@ namespace RouteService.API
                 .ForMember(dest => dest.ViaPoints, opt => opt.MapFrom(src => 
                     !string.IsNullOrEmpty(src.ViaPoints) ? JsonSerializer.Deserialize<IEnumerable<double[]>>(src.ViaPoints, (JsonSerializerOptions)null) : null))
                 .ForMember(dest => dest.GeometryPath, opt => opt.MapFrom(src =>
-                    src.GeometryPath != null ? src.GeometryPath.Coordinates.Select(c => new[] { c.X, c.Y }) : null));
-
-            // For UpdateRouteRequest -> Route (for partial updates)
+                    src.GeometryPath != null ? src.GeometryPath.Coordinates.Select(c => new[] { c.X, c.Y }) : null));            // For UpdateRouteRequest -> Route (for partial updates)
             // Null members in the source will be ignored.
-            CreateMap<UpdateRouteRequest, Route>()
+            CreateMap<UpdateRouteRequest, Models.Route>()
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
                 
             // If specific handling is needed for points in UpdateRouteRequest:

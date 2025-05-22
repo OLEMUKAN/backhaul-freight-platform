@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="14.0.0" />
     <PackageReference Include="MassTransit.AspNetCore" Version="7.3.1" /> <!-- Added MassTransit.AspNetCore -->
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.1.0" />   <!-- Kept existing MassTransit.RabbitMQ, 8.1.0 should be fine -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.6" /> <!-- Downgraded -->
@@ -15,10 +16,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="7.6.0" /> <!-- Downgraded, 8.x for IdentityModel.Tokens might require .NET 9 -->
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" /> <!-- Downgraded -->
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="7.6.0" /> <!-- Downgraded, 8.x for IdentityModel.Tokens might require .NET 9 -->    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" /> <!-- Downgraded -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="8.0.4" /> <!-- Downgraded -->
-    <PackageReference Include="Polly" Version="8.4.1" /> <!-- Downgraded to a more common 8.x version -->
+    <PackageReference Include="Polly" Version="8.5.2" /> <!-- Updated to match version in ServiceDiscovery -->
     <PackageReference Include="Serilog.AspNetCore" Version="7.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>
