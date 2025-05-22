@@ -15,18 +15,18 @@ namespace RouteService.API
             // For CreateRouteRequest -> Route
             CreateMap<CreateRouteRequest, Route>()
                 .ForMember(dest => dest.OriginPoint, opt => opt.MapFrom((src, dest, destMember, context) => 
-                    context.Mapper.ConfigurationProvider.Host<IGeospatialService>().CreatePoint(src.OriginCoordinates[0], src.OriginCoordinates[1])))
+                    ((IGeospatialService)context.Items["GeospatialService"]).CreatePoint(src.OriginCoordinates[0], src.OriginCoordinates[1])))
                 .ForMember(dest => dest.DestinationPoint, opt => opt.MapFrom((src, dest, destMember, context) => 
-                    context.Mapper.ConfigurationProvider.Host<IGeospatialService>().CreatePoint(src.DestinationCoordinates[0], src.DestinationCoordinates[1])))
+                    ((IGeospatialService)context.Items["GeospatialService"]).CreatePoint(src.DestinationCoordinates[0], src.DestinationCoordinates[1])))
                 .ForMember(dest => dest.ViaPoints, opt => opt.MapFrom(src => 
                     src.ViaPoints != null && src.ViaPoints.Any() ? JsonSerializer.Serialize(src.ViaPoints, (JsonSerializerOptions)null) : null));
 
             // For Route -> RouteDto
             CreateMap<Route, RouteDto>()
                 .ForMember(dest => dest.OriginCoordinates, opt => opt.MapFrom((src, dest, destMember, context) => 
-                    context.Mapper.ConfigurationProvider.Host<IGeospatialService>().PointToCoordinateArray(src.OriginPoint)))
+                    ((IGeospatialService)context.Items["GeospatialService"]).PointToCoordinateArray(src.OriginPoint)))
                 .ForMember(dest => dest.DestinationCoordinates, opt => opt.MapFrom((src, dest, destMember, context) => 
-                    context.Mapper.ConfigurationProvider.Host<IGeospatialService>().PointToCoordinateArray(src.DestinationPoint)))
+                    ((IGeospatialService)context.Items["GeospatialService"]).PointToCoordinateArray(src.DestinationPoint)))
                 .ForMember(dest => dest.ViaPoints, opt => opt.MapFrom(src => 
                     !string.IsNullOrEmpty(src.ViaPoints) ? JsonSerializer.Deserialize<IEnumerable<double[]>>(src.ViaPoints, (JsonSerializerOptions)null) : null))
                 .ForMember(dest => dest.GeometryPath, opt => opt.MapFrom(src =>
@@ -60,11 +60,5 @@ namespace RouteService.API
     // The .ForMember(..., ctx => ctx.Mapper.ConfigurationProvider.Host<IGeospatialService>()) approach
     // relies on the service being resolvable by AutoMapper, which usually means it's registered
     // with the DI container that AutoMapper uses.
-    public static class AutoMapperExtensions
-    {
-        public static TService Host<TService>(this IConfigurationProvider config) where TService : class
-        {
-            return config.ServiceCtor.Invoke(typeof(TService)) as TService;
-        }
-    }
+    // The AutoMapperExtensions class and Host<TService> method have been removed.
 }

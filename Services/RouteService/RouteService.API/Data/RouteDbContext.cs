@@ -10,7 +10,10 @@ namespace RouteService.API.Data
         {
         }
 
-        public DbSet<Models.Route> Routes { get; set; } = null!;        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        public DbSet<Models.Route> Routes { get; set; } = null!;
+        public DbSet<ProcessedEvent> ProcessedEvents { get; set; } = null!;
+        
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
@@ -51,6 +54,11 @@ namespace RouteService.API.Data
                 // Configure timestamps
                 entity.Property(r => r.CreatedAt).IsRequired();
                 entity.Property(r => r.UpdatedAt).IsRequired();
+            });
+
+            modelBuilder.Entity<ProcessedEvent>(entity =>
+            {
+                entity.HasKey(pe => pe.EventId);
             });
         }
     }

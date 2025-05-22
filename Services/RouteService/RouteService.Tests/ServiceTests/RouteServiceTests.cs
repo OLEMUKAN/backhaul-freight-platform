@@ -110,8 +110,18 @@ namespace RouteService.Tests.ServiceTests
             _mockTruckServiceClient.Setup(ts => ts.VerifyTruckOwnershipAsync(truckId, ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
             _mockTruckServiceClient.Setup(ts => ts.GetTruckCapacityAsync(truckId, It.IsAny<CancellationToken>())).ReturnsAsync((1000m, 50m));
             _mockEventPublisher.Setup(ep => ep.PublishRouteCreatedEventAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            
             _mockGeospatialService.Setup(g => g.CreatePoint(request.OriginCoordinates[0], request.OriginCoordinates[1])).Returns(_sampleOriginPoint);
             _mockGeospatialService.Setup(g => g.CreatePoint(request.DestinationCoordinates[0], request.DestinationCoordinates[1])).Returns(_sampleDestPoint);
+            
+            // Specific mock for distance calculation for this test
+            double expectedDistance = 250.5; // km
+            _mockGeospatialService.Setup(g => g.CalculateDistanceInKilometers(_sampleOriginPoint, _sampleDestPoint)).Returns(expectedDistance);
+            // Mock CreateLineString to return a LineString with the two points
+            var expectedLineString = new LineString(new[] { _sampleOriginPoint.Coordinate, _sampleDestPoint.Coordinate }) { SRID = 4326 };
+            _mockGeospatialService.Setup(g => g.CreateLineString(It.Is<IEnumerable<Point>>(seq => 
+                seq.Count() == 2 && seq.First().Equals(_sampleOriginPoint) && seq.Last().Equals(_sampleDestPoint))))
+                .Returns(expectedLineString);
 
 
             var result = await _routeService.CreateRouteAsync(request, ownerId, CancellationToken.None);
@@ -122,17 +132,72 @@ namespace RouteService.Tests.ServiceTests
             Assert.Equal(RouteStatus.Planned, result.Status);
             Assert.Equal(1000m, result.TotalCapacityKg);
             Assert.Equal(50m, result.TotalCapacityM3);
-            Assert.True(result.EstimatedDistanceKm > 0);
-            Assert.True(result.EstimatedDurationMinutes > 0);
+            Assert.Equal(expectedDistance, result.EstimatedDistanceKm); // Specific assertion
+            int expectedDuration = (int)Math.Round(expectedDistance / 70.0 * 60); // 70.0 is DefaultAverageSpeedKph
+            Assert.Equal(expectedDuration, result.EstimatedDurationMinutes); // Specific assertion
+
 
             var routeInDb = await _dbContext.Routes.FindAsync(result.Id);
             Assert.NotNull(routeInDb);
             Assert.Equal(ownerId, routeInDb.OwnerId);
+            Assert.Equal(expectedLineString, routeInDb.GeometryPath);
+
 
             _mockEventPublisher.Verify(ep => ep.PublishRouteCreatedEventAsync(result.Id, It.IsAny<CancellationToken>()), Times.Once);
             _mockLogger.Verify(
                 x => x.Log(LogLevel.Information, It.IsAny<EventId>(), It.Is<It.IsAnyType>((v, t) => v.ToString().Contains($"Route {result.Id} created successfully")), null, It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once);
         }
+
+        [Fact]
+        public async Task CreateRouteAsync_WithViaPoints_CalculatesCorrectGeometryAndEstimates()
+        {
+            var ownerId = Guid.NewGuid();
+            var truckId = Guid.NewGuid();
+            var request = new CreateRouteRequest
+            {
+                TruckId = truckId,
+                OriginCoordinates = new[] { _sampleOriginPoint.X, _sampleOriginPoint.Y },
+                ViaPoints = new List<double[]> { new[] { _sampleViaPoint1.X, _sampleViaPoint1.Y }, new[] { _sampleViaPoint2.X, _sampleViaPoint2.Y } },
+                DestinationCoordinates = new[] { _sampleDestPoint.X, _sampleDestPoint.Y },
+                ScheduledDeparture = DateTimeOffset.UtcNow.AddHours(1),
+                ScheduledArrival = DateTimeOffset.UtcNow.AddHours(10),
+                IsReturnLeg = false
+            };
+
+            _mockTruckServiceClient.Setup(ts => ts.VerifyTruckOwnershipAsync(truckId, ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+            _mockTruckServiceClient.Setup(ts => ts.GetTruckCapacityAsync(truckId, It.IsAny<CancellationToken>())).ReturnsAsync((1000m, 50m));
+            _mockEventPublisher.Setup(ep => ep.PublishRouteCreatedEventAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+            _mockGeospatialService.Setup(g => g.CreatePoint(_sampleOriginPoint.X, _sampleOriginPoint.Y)).Returns(_sampleOriginPoint);
+            _mockGeospatialService.Setup(g => g.CreatePoint(_sampleViaPoint1.X, _sampleViaPoint1.Y)).Returns(_sampleViaPoint1);
+            _mockGeospatialService.Setup(g => g.CreatePoint(_sampleViaPoint2.X, _sampleViaPoint2.Y)).Returns(_sampleViaPoint2);
+            _mockGeospatialService.Setup(g => g.CreatePoint(_sampleDestPoint.X, _sampleDestPoint.Y)).Returns(_sampleDestPoint);
+
+            var expectedPointsSequence = new List<Point> { _sampleOriginPoint, _sampleViaPoint1, _sampleViaPoint2, _sampleDestPoint };
+            var expectedLineString = new LineString(expectedPointsSequence.Select(p => p.Coordinate).ToArray()) { SRID = 4326 };
+            _mockGeospatialService.Setup(g => g.CreateLineString(It.Is<IEnumerable<Point>>(seq => seq.SequenceEqual(expectedPointsSequence))))
+                .Returns(expectedLineString);
+
+            _mockGeospatialService.Setup(g => g.CalculateDistanceInKilometers(_sampleOriginPoint, _sampleViaPoint1)).Returns(10.0);
+            _mockGeospatialService.Setup(g => g.CalculateDistanceInKilometers(_sampleViaPoint1, _sampleViaPoint2)).Returns(15.0);
+            _mockGeospatialService.Setup(g => g.CalculateDistanceInKilometers(_sampleViaPoint2, _sampleDestPoint)).Returns(20.0);
+            double expectedTotalDistance = 10.0 + 15.0 + 20.0; // 45.0 km
+
+            var result = await _routeService.CreateRouteAsync(request, ownerId, CancellationToken.None);
+
+            Assert.NotNull(result);
+            Assert.Equal(expectedTotalDistance, result.EstimatedDistanceKm);
+            int expectedDuration = (int)Math.Round(expectedTotalDistance / 70.0 * 60); // 70.0 is DefaultAverageSpeedKph
+            Assert.Equal(expectedDuration, result.EstimatedDurationMinutes);
+
+            _mockGeospatialService.Verify(g => g.CreateLineString(It.Is<IEnumerable<Point>>(seq => seq.SequenceEqual(expectedPointsSequence))), Times.Once);
+            
+            var routeInDb = await _dbContext.Routes.FindAsync(result.Id);
+            Assert.NotNull(routeInDb);
+            Assert.Equal(JsonSerializer.Serialize(request.ViaPoints), routeInDb.ViaPoints);
+            Assert.Equal(expectedLineString, routeInDb.GeometryPath);
+        }
+
 
         [Fact]
         public async Task CreateRouteAsync_InvalidTimes_ThrowsArgumentException()
@@ -205,19 +270,34 @@ namespace RouteService.Tests.ServiceTests
 
         // --- GetRoutesAsync Tests ---
         [Fact]
-        public async Task GetRoutesAsync_NoFilter_ReturnsDefaultPaginatedRoutes()
+        public async Task GetRoutesAsync_DefaultFilter_ReturnsDtoDefaultPaginatedRoutes() // Renamed
         {
-            for (int i = 0; i < 15; i++)
+            for (int i = 0; i < 25; i++) // Ensure enough items for PageSize = 20
             {
                 _dbContext.Routes.Add(new Route { Id = Guid.NewGuid(), OwnerId = Guid.NewGuid(), OriginPoint = _sampleOriginPoint, DestinationPoint = _sampleDestPoint, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(i), ScheduledDeparture = DateTimeOffset.UtcNow, ScheduledArrival = DateTimeOffset.UtcNow.AddHours(1) });
             }
             await _dbContext.SaveChangesAsync();
 
-            var filter = new RouteFilterRequest(); // Default page 1, size 10
+            var filter = new RouteFilterRequest(); // DTO default: Page = 1, PageSize = 20
             var results = (await _routeService.GetRoutesAsync(filter, CancellationToken.None)).ToList();
 
             Assert.NotNull(results);
-            Assert.Equal(10, results.Count); // Default page size
+            Assert.Equal(20, results.Count); // DTO's default PageSize is 20
+        }
+
+        [Fact]
+        public async Task GetRoutesAsync_NullFilter_ReturnsServiceDefaultPaginatedRoutes() // New Test
+        {
+            for (int i = 0; i < 15; i++) // Ensure enough items for PageSize = 10
+            {
+                _dbContext.Routes.Add(new Route { Id = Guid.NewGuid(), OwnerId = Guid.NewGuid(), OriginPoint = _sampleOriginPoint, DestinationPoint = _sampleDestPoint, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(i), ScheduledDeparture = DateTimeOffset.UtcNow, ScheduledArrival = DateTimeOffset.UtcNow.AddHours(1) });
+            }
+            await _dbContext.SaveChangesAsync();
+
+            var results = (await _routeService.GetRoutesAsync(null, CancellationToken.None)).ToList(); // Pass null filter
+
+            Assert.NotNull(results);
+            Assert.Equal(10, results.Count); // Service's internal default PageSize is 10
         }
         
         [Fact]
@@ -243,6 +323,85 @@ namespace RouteService.Tests.ServiceTests
         // For now, assume the EF Core translation for IsWithinDistance is correct and test other filters.
 
         // --- UpdateRouteAsync Tests ---
+        [Fact]
+        public async Task UpdateRouteAsync_WithGeometricChanges_RecalculatesEstimatesAndPath()
+        {
+            var routeId = Guid.NewGuid();
+            var ownerId = Guid.NewGuid();
+            var truckId = Guid.NewGuid();
+
+            var initialOrigin = _sampleOriginPoint;
+            var initialDestination = _sampleDestPoint;
+            var initialViaPoints = new List<double[]> { new[] { _sampleViaPoint1.X, _sampleViaPoint1.Y } };
+            var initialViaPointsString = JsonSerializer.Serialize(initialViaPoints);
+            
+            var initialPointsSequence = new List<Point> { initialOrigin, _sampleViaPoint1, initialDestination };
+            var initialLineString = new LineString(initialPointsSequence.Select(p => p.Coordinate).ToArray()) { SRID = 4326 };
+
+
+            var initialRoute = new Route {
+                Id = routeId, OwnerId = ownerId, TruckId = truckId,
+                OriginPoint = initialOrigin, DestinationPoint = initialDestination, ViaPoints = initialViaPointsString,
+                GeometryPath = initialLineString,
+                EstimatedDistanceKm = 30, EstimatedDurationMinutes = 26, // Initial dummy values
+                Status = RouteStatus.Planned, ScheduledDeparture = DateTimeOffset.UtcNow.AddHours(1), ScheduledArrival = DateTimeOffset.UtcNow.AddHours(5),
+                TotalCapacityKg = 1000m, CapacityAvailableKg = 1000m
+            };
+            _dbContext.Routes.Add(initialRoute);
+            await _dbContext.SaveChangesAsync();
+            _dbContext.Entry(initialRoute).State = EntityState.Detached;
+
+            var newOriginCoords = new[] { 5.0, 15.0 };
+            var newOriginPoint = new Point(newOriginCoords[0], newOriginCoords[1]) { SRID = 4326 };
+            var newViaPoints = new List<double[]> { new[] { _sampleViaPoint2.X, _sampleViaPoint2.Y } }; // Different via point
+
+            var updateRequest = new UpdateRouteRequest {
+                OriginCoordinates = newOriginCoords,
+                ViaPoints = newViaPoints,
+                // DestinationCoordinates remains the same (_sampleDestPoint)
+            };
+
+            _mockTruckServiceClient.Setup(ts => ts.VerifyTruckOwnershipAsync(truckId, ownerId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+            _mockEventPublisher.Setup(ep => ep.PublishRouteUpdatedEventAsync(routeId, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+            _mockGeospatialService.Setup(g => g.CreatePoint(newOriginCoords[0], newOriginCoords[1])).Returns(newOriginPoint);
+            _mockGeospatialService.Setup(g => g.CreatePoint(_sampleViaPoint2.X, _sampleViaPoint2.Y)).Returns(_sampleViaPoint2);
+            // Destination point is not changed, so existing _sampleDestPoint is used by service
+
+            var updatedPointsSequence = new List<Point> { newOriginPoint, _sampleViaPoint2, initialDestination /*_sampleDestPoint*/ };
+            var updatedLineString = new LineString(updatedPointsSequence.Select(p => p.Coordinate).ToArray()) { SRID = 4326 };
+            _mockGeospatialService.Setup(g => g.CreateLineString(It.Is<IEnumerable<Point>>(seq => 
+                seq.ElementAt(0).Equals(newOriginPoint) && 
+                seq.ElementAt(1).Equals(_sampleViaPoint2) &&
+                seq.ElementAt(2).Equals(initialDestination) && // Ensure correct destination
+                seq.Count() == 3)))
+                .Returns(updatedLineString);
+
+            _mockGeospatialService.Setup(g => g.CalculateDistanceInKilometers(newOriginPoint, _sampleViaPoint2)).Returns(12.0);
+            _mockGeospatialService.Setup(g => g.CalculateDistanceInKilometers(_sampleViaPoint2, initialDestination)).Returns(18.0);
+            double expectedNewTotalDistance = 12.0 + 18.0; // 30.0 km
+
+            var result = await _routeService.UpdateRouteAsync(routeId, updateRequest, ownerId, CancellationToken.None);
+
+            Assert.NotNull(result);
+            Assert.Equal(expectedNewTotalDistance, result.EstimatedDistanceKm);
+            int expectedNewDuration = (int)Math.Round(expectedNewTotalDistance / 70.0 * 60);
+            Assert.Equal(expectedNewDuration, result.EstimatedDurationMinutes);
+            Assert.Equal(newOriginCoords, result.OriginCoordinates);
+            Assert.Equal(newViaPoints.Count, result.ViaPoints.Count());
+            Assert.Equal(newViaPoints[0][0], result.ViaPoints.First()[0]); // Check first via point coords
+
+            var routeInDb = await _dbContext.Routes.FindAsync(routeId);
+            Assert.NotNull(routeInDb);
+            Assert.Equal(newOriginPoint, routeInDb.OriginPoint);
+            Assert.Equal(JsonSerializer.Serialize(newViaPoints), routeInDb.ViaPoints);
+            Assert.Equal(updatedLineString, routeInDb.GeometryPath);
+            Assert.Equal(expectedNewTotalDistance, routeInDb.EstimatedDistanceKm);
+            Assert.Equal(expectedNewDuration, routeInDb.EstimatedDurationMinutes);
+
+            _mockEventPublisher.Verify(ep => ep.PublishRouteUpdatedEventAsync(routeId, It.IsAny<CancellationToken>()), Times.Once);
+        }
+
         [Fact]
         public async Task UpdateRouteAsync_ValidUpdate_ReturnsUpdatedDtoAndPublishesEvents()
         {
@@ -326,6 +485,84 @@ namespace RouteService.Tests.ServiceTests
             _mockEventPublisher.Verify(ep => ep.PublishRouteCapacityChangedEventAsync(routeId, 500m, 0m, null, null, It.IsAny<CancellationToken>()), Times.Once);
             _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, RouteStatus.BookedPartial, RouteStatus.BookedFull, It.IsAny<CancellationToken>()), Times.Once);
         }
+
+        [Theory]
+        [InlineData(1000, 50, 500, 25, -250, -10, RouteStatus.BookedPartial, RouteStatus.BookedPartial)] // Kg partial, M3 partial -> BookedPartial
+        [InlineData(1000, 50, 500, 25, -500, -25, RouteStatus.BookedPartial, RouteStatus.BookedFull)]   // Kg full, M3 full -> BookedFull
+        [InlineData(1000, 50, 0, 0, 500, 0, RouteStatus.BookedFull, RouteStatus.BookedPartial)]      // From BothFull, Kg restored, M3 still zero -> BookedPartial
+        [InlineData(1000, 50, 0, 0, 1000, 50, RouteStatus.BookedFull, RouteStatus.Planned)]        // From BothFull, Kg restored, M3 restored -> Planned
+        [InlineData(1000, 50, 1000, 10, 0, 40, RouteStatus.BookedPartial, RouteStatus.Planned)]      // From M3Partial, M3 restored (Kg already full) -> Planned
+        [InlineData(1000, null, 500, null, -250, null, RouteStatus.BookedPartial, RouteStatus.BookedPartial)] // TotalM3 null, Kg partial -> BookedPartial
+        [InlineData(1000, null, 500, null, -500, null, RouteStatus.BookedPartial, RouteStatus.BookedFull)]   // TotalM3 null, Kg full -> BookedFull
+        [InlineData(1000, null, 0, null, 1000, null, RouteStatus.BookedFull, RouteStatus.Planned)]        // TotalM3 null, Kg restored -> Planned
+        public async Task UpdateRouteCapacityAsync_WithVolumeLogic_CorrectlyUpdatesStatus(
+            decimal totalKg, decimal? totalM3, decimal initialKg, decimal? initialM3,
+            decimal changeKg, decimal? changeM3,
+            RouteStatus initialStatus, RouteStatus expectedFinalStatus)
+        {
+            var routeId = Guid.NewGuid();
+            var route = new Route
+            {
+                Id = routeId, OwnerId = Guid.NewGuid(), TruckId = Guid.NewGuid(),
+                TotalCapacityKg = totalKg, TotalCapacityM3 = totalM3,
+                CapacityAvailableKg = initialKg, CapacityAvailableM3 = initialM3,
+                Status = initialStatus,
+                OriginPoint = _sampleOriginPoint, DestinationPoint = _sampleDestPoint,
+                ScheduledDeparture = DateTimeOffset.UtcNow, ScheduledArrival = DateTimeOffset.UtcNow.AddHours(1)
+            };
+            _dbContext.Routes.Add(route);
+            await _dbContext.SaveChangesAsync();
+            _dbContext.Entry(route).State = EntityState.Detached;
+
+            var capacityChangeRequest = new UpdateRouteCapacityRequest { CapacityChangeKg = changeKg, CapacityChangeM3 = changeM3 };
+
+            decimal expectedNewKg = Math.Clamp(initialKg + changeKg, 0, totalKg);
+            decimal? expectedNewM3 = null;
+            if (totalM3.HasValue) // Only calculate expectedNewM3 if totalM3 is defined
+            {
+                expectedNewM3 = Math.Clamp((initialM3 ?? 0) + (changeM3 ?? 0), 0, totalM3.Value);
+            }
+            else if (changeM3.HasValue && (initialM3??0) + changeM3.Value != 0) // if totalM3 is null, newM3 should also be null unless the change makes it zero.
+            {
+                 // This case implies an attempt to set M3 when TotalM3 is null.
+                 // The service logic sets CapacityAvailableM3 to null if TotalCapacityM3 is null.
+                 expectedNewM3 = null;
+            }
+
+
+            _mockEventPublisher.Setup(ep => ep.PublishRouteCapacityChangedEventAsync(routeId, initialKg, expectedNewKg, initialM3, expectedNewM3, It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
+            if (expectedFinalStatus != initialStatus)
+            {
+                _mockEventPublisher.Setup(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, initialStatus, expectedFinalStatus, It.IsAny<CancellationToken>()))
+                    .Returns(Task.CompletedTask);
+            }
+
+            var result = await _routeService.UpdateRouteCapacityAsync(routeId, capacityChangeRequest, CancellationToken.None);
+
+            Assert.NotNull(result);
+            Assert.Equal(expectedNewKg, result.CapacityAvailableKg);
+            if (totalM3.HasValue)
+            {
+                Assert.Equal(expectedNewM3, result.CapacityAvailableM3);
+            }
+            else
+            {
+                Assert.Null(result.CapacityAvailableM3); // Ensure M3 remains null if TotalM3 is null
+            }
+            Assert.Equal(expectedFinalStatus, result.Status);
+
+            _mockEventPublisher.Verify(ep => ep.PublishRouteCapacityChangedEventAsync(routeId, initialKg, expectedNewKg, initialM3, expectedNewM3, It.IsAny<CancellationToken>()), Times.Once);
+            if (expectedFinalStatus != initialStatus)
+            {
+                _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, initialStatus, expectedFinalStatus, It.IsAny<CancellationToken>()), Times.Once);
+            }
+            else
+            {
+                _mockEventPublisher.Verify(ep => ep.PublishRouteStatusUpdatedEventAsync(routeId, It.IsAny<RouteStatus>(), It.IsAny<RouteStatus>(), It.IsAny<CancellationToken>()), Times.Never);
+            }
+        }
+
 
         // --- CancelRouteAsync Tests ---
         [Fact]

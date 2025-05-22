@@ -188,15 +188,25 @@ namespace RouteService.API.Services
                     query = query.Where(r => r.DestinationPoint.IsWithinDistance(searchPoint, filter.DestinationRadiusKm.Value * 1000));
                 }
 
-                query = query.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize);
+                // Filtering logic based on filter properties remains here
             }
-            else // Default pagination if no filter
-            {
-                 query = query.Skip(0).Take(10); // Default to first 10 results
-            }
+
+            // Standardized pagination section
+            int page = filter?.Page ?? 1; // Default to page 1 if filter or filter.Page is null
+            int pageSize = filter?.PageSize ?? 10; // Default to page size 10 if filter or filter.PageSize is null/0
+
+            if (page <= 0) page = 1; // Ensure page is positive
+            if (pageSize <= 0) pageSize = 10; // Ensure pageSize is positive, default to 10
+            // Optional: Add a max page size cap
+            // const int maxPageSize = 100;
+            // if (pageSize > maxPageSize) pageSize = maxPageSize;
+
+            query = query.OrderByDescending(r => r.CreatedAt) // Apply ordering BEFORE pagination
+                         .Skip((page - 1) * pageSize)
+                         .Take(pageSize);
             
-            var routes = await query.OrderByDescending(r => r.CreatedAt).ToListAsync(cancellationToken);
-            _logger.LogInformation("Found {Count} routes matching filter.", routes.Count);
+            var routes = await query.ToListAsync(cancellationToken);
+            _logger.LogInformation("Found {Count} routes matching filter. Page: {Page}, PageSize: {PageSize}", routes.Count, page, pageSize);
             return _mapper.Map<IEnumerable<RouteDto>>(routes, opts => opts.Items["GeospatialService"] = _geospatialService);
         }
 
@@ -350,26 +360,57 @@ namespace RouteService.API.Services
 
             // Update status based on capacity
             // Using a small epsilon for decimal comparison (e.g., 0.01m for kg)
-            if (route.CapacityAvailableKg <= 0.01m && (!route.CapacityAvailableM3.HasValue || route.CapacityAvailableM3 <= 0.01m))
+            // Capture the status before any changes due to capacity update, to compare later for event publishing.
+            // The 'oldStatus' variable already holds this from before capacity modifications.
+
+            bool isKgEffectivelyZero = route.CapacityAvailableKg <= 0.01m;
+            bool isM3EffectivelyZero = route.TotalCapacityM3.HasValue && route.CapacityAvailableM3.HasValue && route.CapacityAvailableM3.Value <= 0.01m;
+            
+            // Determine if the route is booked full
+            // If TotalCapacityM3 is not defined, fullness is determined by Kg only.
+            // If TotalCapacityM3 is defined, both Kg and M3 must be effectively zero to be BookedFull.
+            bool isBookedFull;
+            if (route.TotalCapacityM3.HasValue)
             {
-                if (route.Status != RouteStatus.Cancelled && route.Status != RouteStatus.Completed) // Don't override terminal states
-                    route.Status = RouteStatus.BookedFull;
+                isBookedFull = isKgEffectivelyZero && isM3EffectivelyZero;
             }
-            else if (route.CapacityAvailableKg < route.TotalCapacityKg || (route.CapacityAvailableM3.HasValue && route.TotalCapacityM3.HasValue && route.CapacityAvailableM3 < route.TotalCapacityM3))
+            else // M3 is not a factor for capacity
             {
-                if (route.Status != RouteStatus.Cancelled && route.Status != RouteStatus.Completed && route.Status != RouteStatus.InProgress) // Don't override certain active/terminal states unless becoming full
-                    route.Status = RouteStatus.BookedPartial;
-            }
-            else // Capacity fully available
-            {
-                 // If it was BookedFull or BookedPartial, and now it's not, it goes back to Planned (if not InProgress/Completed etc.)
-                 if (oldStatus == RouteStatus.BookedFull || oldStatus == RouteStatus.BookedPartial)
-                 {
-                    if (route.Status != RouteStatus.InProgress && route.Status != RouteStatus.Completed && route.Status != RouteStatus.Cancelled)
-                        route.Status = RouteStatus.Planned; 
-                 }
+                isBookedFull = isKgEffectivelyZero;
             }
 
+            if (isBookedFull)
+            {
+                if (route.Status != RouteStatus.Cancelled && route.Status != RouteStatus.Completed)
+                    route.Status = RouteStatus.BookedFull;
+            }
+            else // Not BookedFull, so either BookedPartial or Planned
+            {
+                bool isKgLessThanTotal = route.CapacityAvailableKg < route.TotalCapacityKg;
+                // Consider M3 less than total only if TotalCapacityM3 is defined.
+                bool isM3LessThanTotal = route.TotalCapacityM3.HasValue && 
+                                         route.CapacityAvailableM3.HasValue && // Ensure CapacityAvailableM3 also has value
+                                         route.CapacityAvailableM3.Value < route.TotalCapacityM3.Value;
+
+                if (isKgLessThanTotal || (route.TotalCapacityM3.HasValue && isM3LessThanTotal)) // If EITHER is less than total (and M3 is a factor for the OR part)
+                {
+                    if (route.Status != RouteStatus.Cancelled && route.Status != RouteStatus.Completed && route.Status != RouteStatus.InProgress)
+                        route.Status = RouteStatus.BookedPartial;
+                }
+                else // All relevant capacities are at their total
+                {
+                    // Only transition to Planned if it was previously BookedFull or BookedPartial
+                    // and not in a conflicting state like InProgress, Completed, or Cancelled.
+                    if ((oldStatus == RouteStatus.BookedFull || oldStatus == RouteStatus.BookedPartial) &&
+                        (route.Status != RouteStatus.InProgress && route.Status != RouteStatus.Completed && route.Status != RouteStatus.Cancelled))
+                    {
+                        route.Status = RouteStatus.Planned;
+                    }
+                    // If oldStatus was already Planned and capacity remains full, it stays Planned.
+                    // If oldStatus was InProgress and capacity becomes full (restored), it stays InProgress.
+                }
+            }
+            
             route.UpdatedAt = DateTimeOffset.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Capacity updated for Route {RouteId}. New Available Kg: {NewKg}, New Available M3: {NewM3}. Status: {Status}", 

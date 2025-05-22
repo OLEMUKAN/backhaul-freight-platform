@@ -10,20 +10,37 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using Microsoft.EntityFrameworkCore; // For InMemory DbContext
+using RouteService.API.Data; // For RouteDbContext
+using RouteService.API.Models; // For ProcessedEvent
 
 namespace RouteService.Tests.ConsumerTests
 {
-    public class BookingConfirmedEventConsumerTests
+    public class BookingConfirmedEventConsumerTests : IDisposable
     {
         private readonly Mock<IRouteService> _mockRouteService;
         private readonly Mock<ILogger<BookingConfirmedEventConsumer>> _mockLogger;
+        private readonly RouteDbContext _dbContext;
         private readonly BookingConfirmedEventConsumer _consumer;
 
         public BookingConfirmedEventConsumerTests()
         {
             _mockRouteService = new Mock<IRouteService>();
             _mockLogger = new Mock<ILogger<BookingConfirmedEventConsumer>>();
-            _consumer = new BookingConfirmedEventConsumer(_mockRouteService.Object, _mockLogger.Object);
+            
+            var options = new DbContextOptionsBuilder<RouteDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // Unique DB for each test run
+                .Options;
+            _dbContext = new RouteDbContext(options);
+            
+            _consumer = new BookingConfirmedEventConsumer(_mockRouteService.Object, _mockLogger.Object, _dbContext);
+        }
+
+        public void Dispose()
+        {
+            _dbContext.Database.EnsureDeleted();
+            _dbContext.Dispose();
+            GC.SuppressFinalize(this);
         }
 
         [Fact]
@@ -63,6 +80,12 @@ namespace RouteService.Tests.ConsumerTests
                     req.Reason.Contains(bookingId.ToString())
                 ), It.IsAny<CancellationToken>()), Times.Once);
 
+            // Verify ProcessedEvent was created
+            var processedEvent = await _dbContext.ProcessedEvents.FindAsync(bookingId);
+            Assert.NotNull(processedEvent);
+            Assert.Equal(bookingId, processedEvent.EventId);
+            Assert.True((DateTimeOffset.UtcNow - processedEvent.ProcessedAt).TotalSeconds < 5);
+
             _mockLogger.Verify(
                 x => x.Log(
                     LogLevel.Information,
@@ -74,7 +97,49 @@ namespace RouteService.Tests.ConsumerTests
         }
 
         [Fact]
-        public async Task Consume_RouteServiceReturnsNull_LogsWarning()
+        public async Task Consume_DuplicateEvent_SkipsProcessingAndLogs()
+        {
+            // Arrange
+            var routeId = Guid.NewGuid();
+            var bookingId = Guid.NewGuid();
+            var bookingConfirmedEvent = new BookingConfirmedEvent
+            {
+                BookingId = bookingId,
+                RouteId = routeId,
+                BookedWeightKg = 100m,
+                Timestamp = DateTime.UtcNow
+            };
+
+            // Add a ProcessedEvent entry to simulate it being already processed
+            _dbContext.ProcessedEvents.Add(new ProcessedEvent { EventId = bookingId, ProcessedAt = DateTimeOffset.UtcNow.AddMinutes(-5) });
+            await _dbContext.SaveChangesAsync();
+
+            var consumeContextMock = new Mock<ConsumeContext<BookingConfirmedEvent>>();
+            consumeContextMock.Setup(c => c.Message).Returns(bookingConfirmedEvent);
+            consumeContextMock.Setup(c => c.CancellationToken).Returns(CancellationToken.None);
+
+            // Act
+            await _consumer.Consume(consumeContextMock.Object);
+
+            // Assert
+            _mockRouteService.Verify(s => s.UpdateRouteCapacityAsync(It.IsAny<Guid>(), It.IsAny<UpdateRouteCapacityRequest>(), It.IsAny<CancellationToken>()), Times.Never());
+            
+            var processedEventCount = await _dbContext.ProcessedEvents.CountAsync(pe => pe.EventId == bookingId);
+            Assert.Equal(1, processedEventCount); // Ensure no new entry was added
+
+            _mockLogger.Verify(
+                x => x.Log(
+                    LogLevel.Information,
+                    It.IsAny<EventId>(),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString().Contains($"BookingConfirmedEvent for BookingId: {bookingId} already processed. Skipping.")),
+                    null,
+                    It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+                Times.Once);
+        }
+
+
+        [Fact]
+        public async Task Consume_RouteServiceReturnsNull_LogsWarningAndMarksAsProcessed()
         {
             // Arrange
             var bookingConfirmedEvent = new BookingConfirmedEvent
@@ -99,19 +164,24 @@ namespace RouteService.Tests.ConsumerTests
                 x => x.Log(
                     LogLevel.Warning,
                     It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString().Contains($"Route {bookingConfirmedEvent.RouteId} not found or update failed")),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString().Contains($"Route {bookingConfirmedEvent.RouteId} not found or update failed")), // Message updated in consumer
                     null,
                     It.IsAny<Func<It.IsAnyType, Exception, string>>()),
                 Times.Once);
+            
+            // Verify ProcessedEvent was created even if route update failed (as per current consumer logic)
+            var processedEvent = await _dbContext.ProcessedEvents.FindAsync(bookingConfirmedEvent.BookingId);
+            Assert.NotNull(processedEvent);
         }
 
         [Fact]
-        public async Task Consume_RouteServiceThrowsArgumentException_LogsWarningAndDoesNotThrow()
+        public async Task Consume_RouteServiceThrowsArgumentException_LogsWarningAndDoesNotThrowAndDoesNotMarkProcessed()
         {
             // Arrange
+            var bookingId = Guid.NewGuid();
             var bookingConfirmedEvent = new BookingConfirmedEvent
             {
-                BookingId = Guid.NewGuid(),
+                BookingId = bookingId,
                 RouteId = Guid.NewGuid(),
                 BookedWeightKg = 100m,
                 Timestamp = DateTime.UtcNow
