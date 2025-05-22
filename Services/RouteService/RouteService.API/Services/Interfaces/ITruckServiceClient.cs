@@ -10,14 +10,16 @@ namespace RouteService.API.Services.Interfaces
         /// </summary>
         /// <param name="truckId">ID of the truck</param>
         /// <param name="ownerId">ID of the owner</param>
+        /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>True if truck exists and belongs to owner, otherwise false</returns>
-        Task<bool> VerifyTruckOwnershipAsync(Guid truckId, Guid ownerId);
+        Task<bool> VerifyTruckOwnershipAsync(Guid truckId, Guid ownerId, CancellationToken cancellationToken = default);
         
         /// <summary>
         /// Gets truck capacity information
         /// </summary>
         /// <param name="truckId">ID of the truck</param>
+        /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Tuple with (weight capacity in kg, volume capacity in cubic meters)</returns>
-        Task<(decimal CapacityKg, decimal? CapacityM3)> GetTruckCapacityAsync(Guid truckId);
+        Task<(decimal CapacityKg, decimal? CapacityM3)> GetTruckCapacityAsync(Guid truckId, CancellationToken cancellationToken = default);
     }
 }

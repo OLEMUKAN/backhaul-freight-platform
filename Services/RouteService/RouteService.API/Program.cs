@@ -5,6 +5,12 @@ using Microsoft.OpenApi.Models;
 using RouteService.API.Data;
 using Serilog;
 using System.Text;
+using MassTransit; // Required for AddMassTransit
+using RouteService.API.Services; // For RouteService itself and MappingProfile
+using RouteService.API.Services.Interfaces; // For IRouteService
+using RouteService.API; // For MappingProfile
+using RouteService.API.Consumers; // For MassTransit Consumers
+using RouteService.API.Middleware; // For GlobalExceptionHandlerMiddleware
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +22,45 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // Add services to the container
+
+builder.Services.AddMassTransit(mt =>
+{
+    // mt.SetKebabCaseEndpointNameFormatter(); // Optional: standard kebab-case for endpoint names
+
+    // For now, no consumers are defined in this step.
+    // Consumer registration will be handled in a later step.
+    // Example: mt.AddConsumer<MyConsumer>();
+    mt.AddConsumer<BookingConfirmedEventConsumer>();
+    mt.AddConsumer<BookingCancelledEventConsumer>();
+
+    mt.UsingRabbitMq((context, cfg) =>
+    {
+        cfg.Host(builder.Configuration["RabbitMQ:Host"], 
+                 builder.Configuration["RabbitMQ:VirtualHost"], 
+                 h =>
+                 {
+                     h.Username(builder.Configuration["RabbitMQ:Username"]);
+                     h.Password(builder.Configuration["RabbitMQ:Password"]);
+                 });
+
+            // Add global incremental retry policy
+            cfg.UseMessageRetry(r => 
+            {
+                r.Incremental(
+                    retryLimit: 5, 
+                    initialInterval: TimeSpan.FromSeconds(1), 
+                    increment: TimeSpan.FromSeconds(2) 
+                );
+                // For now, no specific exception filters are added, making it a general retry.
+                // Example for future: r.Handle<System.Net.Http.HttpRequestException>();
+            });
+
+        cfg.ConfigureEndpoints(context); // Ensure this is after global retry config
+    });
+});
+// Optional: If you want MassTransit to start with the host and manage its lifecycle
+// builder.Services.AddMassTransitHostedService(true); // This is often default with AddMassTransit in newer versions
+
 builder.Services.AddControllers();
 
 // Configure PostgreSQL with PostGIS
@@ -92,6 +137,15 @@ builder.Services.AddHttpClient("TruckService", client =>
     client.BaseAddress = new Uri(builder.Configuration["ExternalServices:TruckService"]);
 });
 
+// Register application services
+builder.Services.AddScoped<IGeospatialService, GeospatialService>();
+builder.Services.AddScoped<ITruckServiceClient, TruckServiceClient>();
+builder.Services.AddScoped<IEventPublisher, EventPublisher>();
+builder.Services.AddScoped<IRouteService, RouteService.API.Services.RouteService>(); // Added IRouteService registration
+
+// Add AutoMapper
+builder.Services.AddAutoMapper(typeof(MappingProfile)); // Added AutoMapper registration
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
@@ -102,6 +156,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Register global exception handling middleware early in the pipeline
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

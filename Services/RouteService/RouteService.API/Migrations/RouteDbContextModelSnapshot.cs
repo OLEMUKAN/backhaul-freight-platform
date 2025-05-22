@@ -125,6 +125,20 @@ namespace RouteService.API.Migrations
 
                     b.ToTable("Routes");
                 });
+
+            modelBuilder.Entity("RouteService.API.Models.ProcessedEvent", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("EventId");
+
+                    b.ToTable("ProcessedEvents");
+                });
 #pragma warning restore 612, 618
         }
     }

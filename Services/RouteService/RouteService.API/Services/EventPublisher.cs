@@ -1,134 +1,80 @@
 using MassTransit;
-using MessageContracts.Events.Route;
 using Microsoft.Extensions.Logging;
 using RouteService.API.Services.Interfaces;
+using MessageContracts.Events.Route;
+using MessageContracts.Enums;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace RouteService.API.Services
 {
-    /// <summary>
-    /// Implements event publishing for route-related events
-    /// </summary>
     public class EventPublisher : IEventPublisher
     {
-        private readonly IPublishEndpoint _publishEndpoint;
+        private readonly IBus _bus;
         private readonly ILogger<EventPublisher> _logger;
-        
-        public EventPublisher(IPublishEndpoint publishEndpoint, ILogger<EventPublisher> logger)
+
+        public EventPublisher(IBus bus, ILogger<EventPublisher> logger)
         {
-            _publishEndpoint = publishEndpoint ?? throw new ArgumentNullException(nameof(publishEndpoint));
+            _bus = bus ?? throw new ArgumentNullException(nameof(bus));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
-        
-        /// <inheritdoc />
-        public async Task PublishRouteCreatedEventAsync(Guid routeId)
+
+        public async Task PublishRouteCreatedEventAsync(Guid routeId, CancellationToken cancellationToken = default)
         {
-            try
+            var eventMessage = new RouteCreatedEvent
             {
-                _logger.LogInformation("Publishing RouteCreatedEvent for Route {RouteId}", routeId);
-                
-                var @event = new RouteCreatedEvent
-                {
-                    Id = Guid.NewGuid(),
-                    Timestamp = DateTimeOffset.UtcNow,
-                    RouteId = routeId
-                };
-                
-                await _publishEndpoint.Publish(@event);
-                
-                _logger.LogInformation("Successfully published RouteCreatedEvent {EventId} for Route {RouteId}", @event.Id, routeId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to publish RouteCreatedEvent for Route {RouteId}", routeId);
-                throw;
-            }
+                RouteId = routeId,
+                Timestamp = DateTime.UtcNow
+            };
+
+            await _bus.Publish(eventMessage, cancellationToken);
+            _logger.LogInformation("Published RouteCreatedEvent for RouteId: {RouteId}", routeId);
         }
-        
-        /// <inheritdoc />
-        public async Task PublishRouteUpdatedEventAsync(Guid routeId)
+
+        public async Task PublishRouteUpdatedEventAsync(Guid routeId, CancellationToken cancellationToken = default)
         {
-            try
+            var eventMessage = new RouteUpdatedEvent
             {
-                _logger.LogInformation("Publishing RouteUpdatedEvent for Route {RouteId}", routeId);
-                
-                var @event = new RouteUpdatedEvent
-                {
-                    Id = Guid.NewGuid(),
-                    Timestamp = DateTimeOffset.UtcNow,
-                    RouteId = routeId
-                };
-                
-                await _publishEndpoint.Publish(@event);
-                
-                _logger.LogInformation("Successfully published RouteUpdatedEvent {EventId} for Route {RouteId}", @event.Id, routeId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to publish RouteUpdatedEvent for Route {RouteId}", routeId);
-                throw;
-            }
+                RouteId = routeId,
+                Timestamp = DateTime.UtcNow
+            };
+
+            await _bus.Publish(eventMessage, cancellationToken);
+            _logger.LogInformation("Published RouteUpdatedEvent for RouteId: {RouteId}", routeId);
         }
-        
-        /// <inheritdoc />
-        public async Task PublishRouteStatusUpdatedEventAsync(Guid routeId, MessageContracts.Enums.RouteStatus previousStatus, MessageContracts.Enums.RouteStatus newStatus)
+
+        public async Task PublishRouteStatusUpdatedEventAsync(Guid routeId, RouteStatus previousStatus, RouteStatus newStatus, CancellationToken cancellationToken = default)
         {
-            try
+            var eventMessage = new RouteStatusUpdatedEvent
             {
-                _logger.LogInformation("Publishing RouteStatusUpdatedEvent for Route {RouteId} - Status change from {PreviousStatus} to {NewStatus}", 
-                    routeId, previousStatus, newStatus);
-                
-                var @event = new RouteStatusUpdatedEvent
-                {
-                    Id = Guid.NewGuid(),
-                    Timestamp = DateTimeOffset.UtcNow,
-                    RouteId = routeId,
-                    PreviousStatus = previousStatus,
-                    NewStatus = newStatus
-                };
-                
-                await _publishEndpoint.Publish(@event);
-                
-                _logger.LogInformation("Successfully published RouteStatusUpdatedEvent {EventId} for Route {RouteId}", 
-                    @event.Id, routeId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to publish RouteStatusUpdatedEvent for Route {RouteId}", routeId);
-                throw;
-            }
+                RouteId = routeId,
+                PreviousStatus = (int)previousStatus, // Changed from OldStatus and cast to int
+                NewStatus = (int)newStatus,         // Cast to int
+                Timestamp = DateTime.UtcNow
+                // OwnerId and StatusChangeReason are omitted as per subtask instructions
+            };
+
+            await _bus.Publish(eventMessage, cancellationToken);
+            _logger.LogInformation("Published RouteStatusUpdatedEvent for RouteId: {RouteId}. PreviousStatus: {PreviousStatus}, NewStatus: {NewStatus}", 
+                routeId, previousStatus, newStatus); // Log message updated to reflect property name change
         }
-        
-        /// <inheritdoc />
-        public async Task PublishRouteCapacityChangedEventAsync(Guid routeId, decimal previousAvailableKg, decimal newAvailableKg, 
-            decimal? previousAvailableM3, decimal? newAvailableM3)
+
+        public async Task PublishRouteCapacityChangedEventAsync(Guid routeId, decimal previousAvailableKg, decimal newAvailableKg, decimal? previousAvailableM3, decimal? newAvailableM3, CancellationToken cancellationToken = default)
         {
-            try
+            var eventMessage = new RouteCapacityChangedEvent
             {
-                _logger.LogInformation("Publishing RouteCapacityChangedEvent for Route {RouteId} - " +
-                    "Weight capacity change from {PreviousKg}kg to {NewKg}kg, Volume capacity change from {PreviousM3}m³ to {NewM3}m³", 
-                    routeId, previousAvailableKg, newAvailableKg, previousAvailableM3, newAvailableM3);
-                
-                var @event = new RouteCapacityChangedEvent
-                {
-                    Id = Guid.NewGuid(),
-                    Timestamp = DateTimeOffset.UtcNow,
-                    RouteId = routeId,
-                    PreviousCapacityAvailableKg = previousAvailableKg,
-                    NewCapacityAvailableKg = newAvailableKg,
-                    PreviousCapacityAvailableM3 = previousAvailableM3,
-                    NewCapacityAvailableM3 = newAvailableM3
-                };
-                
-                await _publishEndpoint.Publish(@event);
-                
-                _logger.LogInformation("Successfully published RouteCapacityChangedEvent {EventId} for Route {RouteId}", 
-                    @event.Id, routeId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to publish RouteCapacityChangedEvent for Route {RouteId}", routeId);
-                throw;
-            }
+                RouteId = routeId,
+                PreviousAvailableCapacityKg = previousAvailableKg,
+                NewAvailableCapacityKg = newAvailableKg,
+                PreviousAvailableCapacityM3 = previousAvailableM3,
+                NewAvailableCapacityM3 = newAvailableM3,
+                Timestamp = DateTime.UtcNow
+            };
+
+            await _bus.Publish(eventMessage, cancellationToken);
+            _logger.LogInformation("Published RouteCapacityChangedEvent for RouteId: {RouteId}. PrevKg: {PrevKg}, NewKg: {NewKg}, PrevM3: {PrevM3}, NewM3: {NewM3}", 
+                routeId, previousAvailableKg, newAvailableKg, previousAvailableM3, newAvailableM3);
         }
     }
 }
