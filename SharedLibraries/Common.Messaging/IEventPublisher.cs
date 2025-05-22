@@ -1,9 +1,7 @@
-using System.Threading.Tasks;
-
-namespace UserService.API.Services
+namespace Common.Messaging
 {
     public interface IEventPublisher
     {
         Task PublishAsync<T>(T eventMessage) where T : class;
     }
-} 
+}

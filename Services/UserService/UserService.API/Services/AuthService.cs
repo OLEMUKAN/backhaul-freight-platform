@@ -10,7 +10,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using UserService.API.Data;
-using UserService.API.Events;
+using UserService.API.Events; // For UserLoginEvent
+using Common.Messaging; // For IEventPublisher
+using MessageContracts.Events.User; // For UserVerifiedEvent
 using UserService.API.Models;
 using UserService.API.Models.Dtos;
 using UserService.API.Models.Enums;
@@ -136,13 +138,13 @@ namespace UserService.API.Services
                 if (!wasAlreadyVerified)
                 {
                     // Publish verification event
-                    await _eventPublisher.PublishAsync(new UserVerifiedEvent
+                    await _eventPublisher.PublishAsync(new MessageContracts.Events.User.UserVerifiedEvent // Qualified the type
                     {
                         UserId = user.Id,
                         Email = user.Email ?? string.Empty,
-                        Role = user.Role,
-                        IsEmailVerified = true,
-                        IsPhoneVerified = user.IsPhoneConfirmed
+                        Role = (MessageContracts.Enums.UserRole)user.Role, // Casted
+                        IsEmailConfirmed = true, // Corrected property name
+                        IsPhoneConfirmed = user.IsPhoneConfirmed // Corrected property name
                     });
                 }
                 

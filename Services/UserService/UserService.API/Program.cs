@@ -7,9 +7,10 @@ using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Text;
 using UserService.API.Data;
-using UserService.API.Middleware;
+using Common.Middleware;
 using UserService.API.Models;
-using UserService.API.Services;
+using UserService.API.Services; // Keep this for other services like IAuthService, IUserService
+using Common.Messaging; // Added this line
 using UserService.API.Events;
 using UserService.API.Models.Enums;
 using MassTransit;
@@ -175,7 +176,7 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<IAuthService, AuthService>();
     builder.Services.AddScoped<IUserService, UserService.API.Services.UserService>();
-    builder.Services.AddScoped<UserService.API.Services.IEventPublisher, UserService.API.Services.EventPublisher>();
+    builder.Services.AddScoped<IEventPublisher, Common.Messaging.EventPublisher>(); // Changed this line
     builder.Services.AddScoped<ServiceHttpClientFactory>();
 
     var app = builder.Build();

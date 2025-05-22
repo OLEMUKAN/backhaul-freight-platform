@@ -6,9 +6,10 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using TruckService.API.Data;
-using TruckService.API.Events;
-using TruckService.API.Middleware;
+using Common.Messaging; // Added this line
+using Common.Middleware;
 using TruckService.API.Services;
+using TruckService.API.Events; // Added for UserStatusChangedConsumer
 using MassTransit;
 using System.Security.Claims;
 using AspNetCoreRateLimit;
@@ -184,7 +185,7 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ITruckService, TruckService.API.Services.TruckService>();
     builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
-    builder.Services.AddScoped<IEventPublisher, EventPublisher>();
+    builder.Services.AddScoped<IEventPublisher, Common.Messaging.EventPublisher>(); // Changed this line
     
     // Add service discovery
     builder.Services.AddServiceDiscovery(builder.Configuration);
@@ -220,7 +221,7 @@ try
         app.UseHsts();
     }
       // Exception handling middleware
-    app.UseTruckServiceExceptionHandling();
+    app.UseExceptionHandling();
     
     // HTTPS redirection
     app.UseHttpsRedirection();

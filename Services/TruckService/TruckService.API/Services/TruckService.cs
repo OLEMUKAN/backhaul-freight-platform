@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TruckService.API.Data;
-using TruckService.API.Events;
+using Common.Messaging; // Changed this line
 using TruckService.API.Models;
 using TruckService.API.Models.Dtos;
 using MessageContracts.Events.Truck;
@@ -86,7 +86,7 @@ namespace TruckService.API.Services
             await _dbContext.SaveChangesAsync();
 
             // Publish event
-            await _eventPublisher.PublishTruckRegisteredAsync(new TruckRegisteredEvent
+            await _eventPublisher.PublishAsync(new TruckRegisteredEvent // Changed this line
             {
                 TruckId = truck.Id,
                 OwnerId = truck.OwnerId,
@@ -231,7 +231,7 @@ namespace TruckService.API.Services
                 hasChanges = true;
                 
                 // Publish status updated event
-                await _eventPublisher.PublishTruckStatusUpdatedAsync(new TruckStatusUpdatedEvent
+                await _eventPublisher.PublishAsync(new TruckStatusUpdatedEvent // Changed this line
                 {
                     TruckId = truck.Id,
                     OwnerId = truck.OwnerId,
@@ -246,7 +246,7 @@ namespace TruckService.API.Services
                 await _dbContext.SaveChangesAsync();
                 
                 // Publish general update event
-                await _eventPublisher.PublishTruckUpdatedAsync(updateEvent);
+                await _eventPublisher.PublishAsync(updateEvent); // Changed this line
                 
                 _logger.LogInformation("Successfully updated truck {TruckId}", id);
             }
@@ -286,7 +286,7 @@ namespace TruckService.API.Services
             await _dbContext.SaveChangesAsync();
             
             // Publish truck deleted event
-            await _eventPublisher.PublishTruckDeletedAsync(new TruckDeletedEvent
+            await _eventPublisher.PublishAsync(new TruckDeletedEvent // Changed this line
             {
                 TruckId = truck.Id,
                 OwnerId = truck.OwnerId,
@@ -330,7 +330,7 @@ namespace TruckService.API.Services
             await _dbContext.SaveChangesAsync();
             
             // Publish verification event
-            await _eventPublisher.PublishTruckVerifiedAsync(new TruckVerifiedEvent
+            await _eventPublisher.PublishAsync(new TruckVerifiedEvent // Changed this line
             {
                 TruckId = truck.Id,
                 OwnerId = truck.OwnerId,
@@ -409,7 +409,7 @@ namespace TruckService.API.Services
             await _dbContext.SaveChangesAsync();
             
             // Publish document uploaded event
-            await _eventPublisher.PublishTruckDocumentUploadedAsync(new TruckDocumentUploadedEvent
+            await _eventPublisher.PublishAsync(new TruckDocumentUploadedEvent // Changed this line
             {
                 TruckId = truck.Id,
                 OwnerId = truck.OwnerId,
