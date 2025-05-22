@@ -4,6 +4,7 @@ using RouteService.API.Services.Interfaces;
 using MessageContracts.Events.Route;
 using MessageContracts.Enums;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RouteService.API.Services
@@ -19,7 +20,7 @@ namespace RouteService.API.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task PublishRouteCreatedEventAsync(Guid routeId)
+        public async Task PublishRouteCreatedEventAsync(Guid routeId, CancellationToken cancellationToken = default)
         {
             var eventMessage = new RouteCreatedEvent
             {
@@ -27,11 +28,11 @@ namespace RouteService.API.Services
                 Timestamp = DateTime.UtcNow
             };
 
-            await _bus.Publish(eventMessage);
+            await _bus.Publish(eventMessage, cancellationToken);
             _logger.LogInformation("Published RouteCreatedEvent for RouteId: {RouteId}", routeId);
         }
 
-        public async Task PublishRouteUpdatedEventAsync(Guid routeId)
+        public async Task PublishRouteUpdatedEventAsync(Guid routeId, CancellationToken cancellationToken = default)
         {
             var eventMessage = new RouteUpdatedEvent
             {
@@ -39,26 +40,27 @@ namespace RouteService.API.Services
                 Timestamp = DateTime.UtcNow
             };
 
-            await _bus.Publish(eventMessage);
+            await _bus.Publish(eventMessage, cancellationToken);
             _logger.LogInformation("Published RouteUpdatedEvent for RouteId: {RouteId}", routeId);
         }
 
-        public async Task PublishRouteStatusUpdatedEventAsync(Guid routeId, RouteStatus previousStatus, RouteStatus newStatus)
+        public async Task PublishRouteStatusUpdatedEventAsync(Guid routeId, RouteStatus previousStatus, RouteStatus newStatus, CancellationToken cancellationToken = default)
         {
             var eventMessage = new RouteStatusUpdatedEvent
             {
                 RouteId = routeId,
-                OldStatus = previousStatus,
-                NewStatus = newStatus,
+                PreviousStatus = (int)previousStatus, // Changed from OldStatus and cast to int
+                NewStatus = (int)newStatus,         // Cast to int
                 Timestamp = DateTime.UtcNow
+                // OwnerId and StatusChangeReason are omitted as per subtask instructions
             };
 
-            await _bus.Publish(eventMessage);
-            _logger.LogInformation("Published RouteStatusUpdatedEvent for RouteId: {RouteId}. OldStatus: {OldStatus}, NewStatus: {NewStatus}", 
-                routeId, previousStatus, newStatus);
+            await _bus.Publish(eventMessage, cancellationToken);
+            _logger.LogInformation("Published RouteStatusUpdatedEvent for RouteId: {RouteId}. PreviousStatus: {PreviousStatus}, NewStatus: {NewStatus}", 
+                routeId, previousStatus, newStatus); // Log message updated to reflect property name change
         }
 
-        public async Task PublishRouteCapacityChangedEventAsync(Guid routeId, decimal previousAvailableKg, decimal newAvailableKg, decimal? previousAvailableM3, decimal? newAvailableM3)
+        public async Task PublishRouteCapacityChangedEventAsync(Guid routeId, decimal previousAvailableKg, decimal newAvailableKg, decimal? previousAvailableM3, decimal? newAvailableM3, CancellationToken cancellationToken = default)
         {
             var eventMessage = new RouteCapacityChangedEvent
             {
@@ -70,7 +72,7 @@ namespace RouteService.API.Services
                 Timestamp = DateTime.UtcNow
             };
 
-            await _bus.Publish(eventMessage);
+            await _bus.Publish(eventMessage, cancellationToken);
             _logger.LogInformation("Published RouteCapacityChangedEvent for RouteId: {RouteId}. PrevKg: {PrevKg}, NewKg: {NewKg}, PrevM3: {PrevM3}, NewM3: {NewM3}", 
                 routeId, previousAvailableKg, newAvailableKg, previousAvailableM3, newAvailableM3);
         }

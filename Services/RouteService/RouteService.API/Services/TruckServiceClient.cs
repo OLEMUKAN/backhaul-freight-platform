@@ -3,6 +3,7 @@ using RouteService.API.Services.Interfaces;
 using System;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RouteService.API.Services
@@ -18,16 +19,44 @@ namespace RouteService.API.Services
             _logger = logger;
         }
 
-        public async Task<bool> VerifyTruckOwnershipAsync(Guid truckId, Guid ownerId)
+        public async Task<bool> VerifyTruckOwnershipAsync(Guid truckId, Guid ownerId, CancellationToken cancellationToken = default)
         {
             var requestUrl = $"/api/trucks/{truckId}/owner/{ownerId}";
             try
             {
-                var response = await _httpClient.GetAsync(requestUrl);
+                var response = await _httpClient.GetAsync(requestUrl, cancellationToken);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    return true;
+                    if (response.Content == null)
+                    {
+                        _logger.LogWarning("Truck ownership verification for Truck {TruckId}, Owner {OwnerId} returned successful status code but content was null.", truckId, ownerId);
+                        return false;
+                    }
+                    try
+                    {
+                        var verificationResponse = await response.Content.ReadFromJsonAsync<TruckOwnershipVerificationResponse>(cancellationToken: cancellationToken);
+                        if (verificationResponse != null)
+                        {
+                            if (verificationResponse.IsOwner)
+                            {
+                                return true;
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Truck ownership verification for Truck {TruckId}, Owner {OwnerId} returned IsOwner=false.", truckId, ownerId);
+                                return false;
+                            }
+                        }
+                        _logger.LogWarning("Truck ownership verification for Truck {TruckId}, Owner {OwnerId} resulted in null after deserialization.", truckId, ownerId);
+                        return false;
+                    }
+                    catch (JsonException ex)
+                    {
+                        _logger.LogError(ex, "JSON deserialization error during truck ownership verification for Truck {TruckId}, Owner {OwnerId}. Response: {Response}", 
+                            truckId, ownerId, await response.Content.ReadAsStringAsync(cancellationToken));
+                        return false;
+                    }
                 }
 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -37,12 +66,17 @@ namespace RouteService.API.Services
                 }
                 
                 _logger.LogError("Truck ownership verification failed for Truck {TruckId}, Owner {OwnerId}. Status code: {StatusCode}. Response: {Response}", 
-                    truckId, ownerId, response.StatusCode, await response.Content.ReadAsStringAsync());
+                    truckId, ownerId, response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
                 return false;
             }
             catch (HttpRequestException ex)
             {
                 _logger.LogError(ex, "HTTP request exception during truck ownership verification for Truck {TruckId}, Owner {OwnerId}.", truckId, ownerId);
+                return false;
+            }
+            catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogInformation(ex, "Truck ownership verification cancelled for Truck {TruckId}, Owner {OwnerId}.", truckId, ownerId);
                 return false;
             }
             catch (Exception ex)
@@ -52,12 +86,12 @@ namespace RouteService.API.Services
             }
         }
 
-        public async Task<(decimal CapacityKg, decimal? CapacityM3)> GetTruckCapacityAsync(Guid truckId)
+        public async Task<(decimal CapacityKg, decimal? CapacityM3)> GetTruckCapacityAsync(Guid truckId, CancellationToken cancellationToken = default)
         {
             var requestUrl = $"/api/trucks/{truckId}/capacity"; 
             try
             {
-                var response = await _httpClient.GetAsync(requestUrl);
+                var response = await _httpClient.GetAsync(requestUrl, cancellationToken);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -68,7 +102,7 @@ namespace RouteService.API.Services
                     }
                     try
                     {
-                        var capacity = await response.Content.ReadFromJsonAsync<TruckCapacityDto>();
+                        var capacity = await response.Content.ReadFromJsonAsync<TruckCapacityDto>(cancellationToken: cancellationToken);
                         if (capacity != null)
                         {
                             return (capacity.CapacityKg, capacity.CapacityM3);
@@ -90,12 +124,17 @@ namespace RouteService.API.Services
                 }
 
                 _logger.LogError("GetTruckCapacityAsync failed for Truck {TruckId}. Status code: {StatusCode}. Response: {Response}", 
-                    truckId, response.StatusCode, await response.Content.ReadAsStringAsync());
+                    truckId, response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
                 return (0, null);
             }
             catch (HttpRequestException ex)
             {
                 _logger.LogError(ex, "HTTP request exception during GetTruckCapacityAsync for Truck {TruckId}.", truckId);
+                return (0, null);
+            }
+            catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogInformation(ex, "GetTruckCapacityAsync cancelled for Truck {TruckId}.", truckId);
                 return (0, null);
             }
             catch (Exception ex)
@@ -110,6 +149,11 @@ namespace RouteService.API.Services
         {
             public decimal CapacityKg { get; set; }
             public decimal? CapacityM3 { get; set; }
+        }
+
+        private class TruckOwnershipVerificationResponse
+        {
+            public bool IsOwner { get; set; }
         }
     }
 }

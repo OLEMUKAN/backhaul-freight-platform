@@ -35,7 +35,7 @@ namespace RouteService.API.Consumers
 
             try
             {
-                var updatedRoute = await _routeService.UpdateRouteCapacityAsync(message.RouteId, updateCapacityRequest);
+                var updatedRoute = await _routeService.UpdateRouteCapacityAsync(message.RouteId, updateCapacityRequest, context.CancellationToken);
                 if (updatedRoute == null)
                 {
                     _logger.LogWarning("Route {RouteId} not found or update failed when processing BookingCancelledEvent {BookingId}.", 

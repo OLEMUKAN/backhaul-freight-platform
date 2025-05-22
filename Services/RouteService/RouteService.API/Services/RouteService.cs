@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RouteService.API.Services
@@ -41,7 +42,7 @@ namespace RouteService.API.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<RouteDto> CreateRouteAsync(CreateRouteRequest request, Guid ownerId)
+        public async Task<RouteDto> CreateRouteAsync(CreateRouteRequest request, Guid ownerId, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Attempting to create route for Owner: {OwnerId}, Truck: {TruckId}", ownerId, request.TruckId);
 
@@ -75,13 +76,13 @@ namespace RouteService.API.Services
             }
 
 
-            if (!await _truckServiceClient.VerifyTruckOwnershipAsync(request.TruckId, ownerId))
+            if (!await _truckServiceClient.VerifyTruckOwnershipAsync(request.TruckId, ownerId, cancellationToken))
             {
                 _logger.LogWarning("Truck ownership verification failed for TruckId: {TruckId}, OwnerId: {OwnerId}", request.TruckId, ownerId);
                 throw new UnauthorizedAccessException($"User {ownerId} does not own truck {request.TruckId}.");
             }
 
-            (var capacityKg, var capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(request.TruckId);
+            (var capacityKg, var capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(request.TruckId, cancellationToken);
             if (capacityKg <= 0) 
             {
                 _logger.LogWarning("Failed to retrieve valid capacity for TruckId: {TruckId}. CapacityKg: {CapacityKg}", request.TruckId, capacityKg);
@@ -137,18 +138,18 @@ namespace RouteService.API.Services
             route.UpdatedAt = now;
 
             _context.Routes.Add(route);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Route {RouteId} created successfully for Owner: {OwnerId}, Truck: {TruckId}.", route.Id, ownerId, request.TruckId);
 
-            await _eventPublisher.PublishRouteCreatedEventAsync(route.Id);
+            await _eventPublisher.PublishRouteCreatedEventAsync(route.Id, cancellationToken);
 
             return _mapper.Map<RouteDto>(route, opts => opts.Items["GeospatialService"] = _geospatialService);
         }
 
-        public async Task<RouteDto> GetRouteByIdAsync(Guid id)
+        public async Task<RouteDto?> GetRouteByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Fetching route by Id: {RouteId}", id);
-            var route = await _context.Routes.FirstOrDefaultAsync(r => r.Id == id);
+            var route = await _context.Routes.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
             if (route == null)
             {
                  _logger.LogWarning("Route with Id: {RouteId} not found.", id);
@@ -157,7 +158,7 @@ namespace RouteService.API.Services
             return _mapper.Map<RouteDto>(route, opts => opts.Items["GeospatialService"] = _geospatialService);
         }
 
-        public async Task<IEnumerable<RouteDto>> GetRoutesAsync(RouteFilterRequest filter)
+        public async Task<IEnumerable<RouteDto>> GetRoutesAsync(RouteFilterRequest? filter = null, CancellationToken cancellationToken = default)
         {
              _logger.LogInformation("Fetching routes with filter: {@RouteFilterRequest}", filter);
             var query = _context.Routes.AsQueryable();
@@ -194,15 +195,15 @@ namespace RouteService.API.Services
                  query = query.Skip(0).Take(10); // Default to first 10 results
             }
             
-            var routes = await query.OrderByDescending(r => r.CreatedAt).ToListAsync();
+            var routes = await query.OrderByDescending(r => r.CreatedAt).ToListAsync(cancellationToken);
             _logger.LogInformation("Found {Count} routes matching filter.", routes.Count);
             return _mapper.Map<IEnumerable<RouteDto>>(routes, opts => opts.Items["GeospatialService"] = _geospatialService);
         }
 
-        public async Task<RouteDto> UpdateRouteAsync(Guid id, UpdateRouteRequest request, Guid ownerId)
+        public async Task<RouteDto?> UpdateRouteAsync(Guid id, UpdateRouteRequest request, Guid ownerId, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Attempting to update route {RouteId} by Owner: {OwnerId}", id, ownerId);
-            var route = await _context.Routes.FindAsync(id);
+            var route = await _context.Routes.FindAsync(new object[] { id }, cancellationToken);
             if (route == null)
             {
                 _logger.LogWarning("Route {RouteId} not found for update by Owner: {OwnerId}", id, ownerId);
@@ -210,7 +211,7 @@ namespace RouteService.API.Services
             }
 
             // Verify ownership using the route's current TruckId.
-            if (!await _truckServiceClient.VerifyTruckOwnershipAsync(route.TruckId, ownerId))
+            if (!await _truckServiceClient.VerifyTruckOwnershipAsync(route.TruckId, ownerId, cancellationToken))
             {
                  _logger.LogWarning("Ownership verification failed for updating Route {RouteId}. Truck {TruckId}, Owner {OwnerId}", id, route.TruckId, ownerId);
                  throw new UnauthorizedAccessException($"User {ownerId} is not authorized to update route {id}.");
@@ -291,13 +292,13 @@ namespace RouteService.API.Services
             }
 
             route.UpdatedAt = DateTimeOffset.UtcNow;
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Route {RouteId} updated successfully by Owner: {OwnerId}.", route.Id, ownerId);
 
-            await _eventPublisher.PublishRouteUpdatedEventAsync(route.Id);
+            await _eventPublisher.PublishRouteUpdatedEventAsync(route.Id, cancellationToken);
             if (request.Status.HasValue && route.Status != oldStatus) // Only publish if status was in the request and changed
             {
-                await _eventPublisher.PublishRouteStatusUpdatedEventAsync(route.Id, oldStatus, route.Status);
+                await _eventPublisher.PublishRouteStatusUpdatedEventAsync(route.Id, oldStatus, route.Status, cancellationToken);
             }
             // Capacity might have changed if truckId changed, but this method does not handle truckId changes.
             // If TotalCapacityKg or TotalCapacityM3 were part of UpdateRouteRequest (they are not per DTO),
@@ -306,11 +307,11 @@ namespace RouteService.API.Services
             return _mapper.Map<RouteDto>(route, opts => opts.Items["GeospatialService"] = _geospatialService);
         }
 
-        public async Task<RouteDto> UpdateRouteCapacityAsync(Guid id, UpdateRouteCapacityRequest request)
+        public async Task<RouteDto?> UpdateRouteCapacityAsync(Guid id, UpdateRouteCapacityRequest request, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Attempting to update capacity for route {RouteId} with changes: Kg={CapacityChangeKg}, M3={CapacityChangeM3}", 
                 id, request.CapacityChangeKg, request.CapacityChangeM3);
-            var route = await _context.Routes.FindAsync(id);
+            var route = await _context.Routes.FindAsync(new object[] { id }, cancellationToken);
             if (route == null)
             {
                 _logger.LogWarning("Route {RouteId} not found for capacity update.", id);
@@ -370,30 +371,30 @@ namespace RouteService.API.Services
             }
 
             route.UpdatedAt = DateTimeOffset.UtcNow;
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Capacity updated for Route {RouteId}. New Available Kg: {NewKg}, New Available M3: {NewM3}. Status: {Status}", 
                 id, route.CapacityAvailableKg, route.CapacityAvailableM3, route.Status);
 
-            await _eventPublisher.PublishRouteCapacityChangedEventAsync(route.Id, oldCapacityKg, route.CapacityAvailableKg, oldCapacityM3, route.CapacityAvailableM3);
+            await _eventPublisher.PublishRouteCapacityChangedEventAsync(route.Id, oldCapacityKg, route.CapacityAvailableKg, oldCapacityM3, route.CapacityAvailableM3, cancellationToken);
             if (route.Status != oldStatus)
             {
-                await _eventPublisher.PublishRouteStatusUpdatedEventAsync(route.Id, oldStatus, route.Status);
+                await _eventPublisher.PublishRouteStatusUpdatedEventAsync(route.Id, oldStatus, route.Status, cancellationToken);
             }
             
             return _mapper.Map<RouteDto>(route, opts => opts.Items["GeospatialService"] = _geospatialService);
         }
 
-        public async Task<bool> CancelRouteAsync(Guid id, Guid ownerId)
+        public async Task<bool> CancelRouteAsync(Guid id, Guid ownerId, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Attempting to cancel route {RouteId} by Owner: {OwnerId}", id, ownerId);
-            var route = await _context.Routes.FindAsync(id);
+            var route = await _context.Routes.FindAsync(new object[] { id }, cancellationToken);
             if (route == null)
             {
                 _logger.LogWarning("Route {RouteId} not found for cancellation by Owner: {OwnerId}.", id, ownerId);
                 return false;
             }
 
-            if (!await _truckServiceClient.VerifyTruckOwnershipAsync(route.TruckId, ownerId))
+            if (!await _truckServiceClient.VerifyTruckOwnershipAsync(route.TruckId, ownerId, cancellationToken))
             {
                  _logger.LogWarning("Ownership verification failed for cancelling Route {RouteId}. Truck {TruckId}, Owner {OwnerId}", id, route.TruckId, ownerId);
                  throw new UnauthorizedAccessException($"User {ownerId} is not authorized to cancel route {id}.");
@@ -417,10 +418,10 @@ namespace RouteService.API.Services
             route.Status = RouteStatus.Cancelled;
             route.UpdatedAt = DateTimeOffset.UtcNow;
 
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Route {RouteId} cancelled successfully by Owner: {OwnerId}.", id, ownerId);
 
-            await _eventPublisher.PublishRouteStatusUpdatedEventAsync(route.Id, oldStatus, RouteStatus.Cancelled);
+            await _eventPublisher.PublishRouteStatusUpdatedEventAsync(route.Id, oldStatus, RouteStatus.Cancelled, cancellationToken);
             return true;
         }
     }

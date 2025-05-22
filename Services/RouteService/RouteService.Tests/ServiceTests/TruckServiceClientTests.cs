@@ -62,17 +62,93 @@ namespace RouteService.Tests.ServiceTests
 
         // Tests for VerifyTruckOwnershipAsync
         [Fact]
-        public async Task VerifyTruckOwnershipAsync_SuccessfulResponse_ReturnsTrue()
+        public async Task VerifyTruckOwnershipAsync_SuccessfulResponse_IsOwnerTrue_ReturnsTrue()
         {
             var truckId = Guid.NewGuid();
             var ownerId = Guid.NewGuid();
-            var httpResponse = new HttpResponseMessage(HttpStatusCode.OK);
+            var jsonResponse = "{\"isOwner\": true}";
+            var httpResponse = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(jsonResponse, System.Text.Encoding.UTF8, "application/json")
+            };
             SetupHttpClient(httpResponse);
 
-            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId);
+            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId, CancellationToken.None);
 
             Assert.True(result);
         }
+
+        [Fact]
+        public async Task VerifyTruckOwnershipAsync_SuccessfulResponse_IsOwnerFalse_ReturnsFalse()
+        {
+            var truckId = Guid.NewGuid();
+            var ownerId = Guid.NewGuid();
+            var jsonResponse = "{\"isOwner\": false}";
+            var httpResponse = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(jsonResponse, System.Text.Encoding.UTF8, "application/json")
+            };
+            SetupHttpClient(httpResponse);
+
+            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId, CancellationToken.None);
+
+            Assert.False(result);
+            _mockLogger.Verify(
+                x => x.Log(
+                    LogLevel.Warning,
+                    It.IsAny<EventId>(),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString().Contains($"Truck ownership verification for Truck {truckId}, Owner {ownerId} returned IsOwner=false.")),
+                    null,
+                    It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+                Times.Once);
+        }
+        
+        [Fact]
+        public async Task VerifyTruckOwnershipAsync_SuccessfulResponse_MalformedJson_ReturnsFalse()
+        {
+            var truckId = Guid.NewGuid();
+            var ownerId = Guid.NewGuid();
+            var malformedJsonResponse = "{\"isOwner\": true"; // Missing closing brace
+            var httpResponse = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(malformedJsonResponse, System.Text.Encoding.UTF8, "application/json")
+            };
+            SetupHttpClient(httpResponse);
+
+            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId, CancellationToken.None);
+
+            Assert.False(result);
+            _mockLogger.Verify(
+                x => x.Log(
+                    LogLevel.Error, // Changed to Error because JsonException is logged as Error
+                    It.IsAny<EventId>(),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("JSON deserialization error during truck ownership verification")),
+                    It.IsAny<JsonException>(),
+                    It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+                Times.Once);
+        }
+        
+        [Fact]
+        public async Task VerifyTruckOwnershipAsync_SuccessfulResponse_NullContent_ReturnsFalse()
+        {
+            var truckId = Guid.NewGuid();
+            var ownerId = Guid.NewGuid();
+            var httpResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = null }; // Null content
+            SetupHttpClient(httpResponse);
+
+            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId, CancellationToken.None);
+
+            Assert.False(result);
+            _mockLogger.Verify(
+                x => x.Log(
+                    LogLevel.Warning,
+                    It.IsAny<EventId>(),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("returned successful status code but content was null")),
+                    null,
+                    It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+                Times.Once);
+        }
+
 
         [Fact]
         public async Task VerifyTruckOwnershipAsync_NotFoundResponse_ReturnsFalse()
@@ -82,7 +158,7 @@ namespace RouteService.Tests.ServiceTests
             var httpResponse = new HttpResponseMessage(HttpStatusCode.NotFound);
             SetupHttpClient(httpResponse);
 
-            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId);
+            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId, CancellationToken.None);
 
             Assert.False(result);
         }
@@ -95,7 +171,7 @@ namespace RouteService.Tests.ServiceTests
             var httpResponse = new HttpResponseMessage(HttpStatusCode.InternalServerError);
             SetupHttpClient(httpResponse);
 
-            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId);
+            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId, CancellationToken.None);
 
             Assert.False(result);
             // Optionally verify logging
@@ -124,7 +200,7 @@ namespace RouteService.Tests.ServiceTests
             _mockHttpClientFactory.Setup(_ => _.CreateClient("TruckService")).Returns(httpClient);
             _truckServiceClient = new TruckServiceClient(_mockHttpClientFactory.Object, _mockLogger.Object);
 
-            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId);
+            var result = await _truckServiceClient.VerifyTruckOwnershipAsync(truckId, ownerId, CancellationToken.None);
 
             Assert.False(result);
             _mockLogger.Verify(
@@ -152,7 +228,7 @@ namespace RouteService.Tests.ServiceTests
             var httpResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = jsonContent };
             SetupHttpClient(httpResponse);
 
-            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId);
+            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId, CancellationToken.None);
 
             Assert.Equal(expectedCapacityKg, capacityKg);
             Assert.Equal(expectedCapacityM3, capacityM3);
@@ -172,7 +248,7 @@ namespace RouteService.Tests.ServiceTests
             var httpResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = jsonContent };
             SetupHttpClient(httpResponse);
 
-            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId);
+            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId, CancellationToken.None);
 
             Assert.Equal(expectedCapacityKg, capacityKg);
             Assert.Null(capacityM3);
@@ -186,7 +262,7 @@ namespace RouteService.Tests.ServiceTests
             var httpResponse = new HttpResponseMessage(HttpStatusCode.NotFound);
             SetupHttpClient(httpResponse);
 
-            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId);
+            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId, CancellationToken.None);
 
             Assert.Equal(0, capacityKg);
             Assert.Null(capacityM3);
@@ -208,7 +284,7 @@ namespace RouteService.Tests.ServiceTests
             var httpResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = invalidJsonContent };
             SetupHttpClient(httpResponse);
 
-            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId);
+            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId, CancellationToken.None);
 
             Assert.Equal(0, capacityKg);
             Assert.Null(capacityM3);
@@ -230,7 +306,7 @@ namespace RouteService.Tests.ServiceTests
             var httpResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = null };
             SetupHttpClient(httpResponse);
 
-            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId);
+            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId, CancellationToken.None);
 
             Assert.Equal(0, capacityKg);
             Assert.Null(capacityM3);
@@ -252,7 +328,7 @@ namespace RouteService.Tests.ServiceTests
             var httpResponse = new HttpResponseMessage(HttpStatusCode.InternalServerError);
             SetupHttpClient(httpResponse);
 
-            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId);
+            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId, CancellationToken.None);
 
             Assert.Equal(0, capacityKg);
             Assert.Null(capacityM3);
@@ -279,7 +355,7 @@ namespace RouteService.Tests.ServiceTests
             _mockHttpClientFactory.Setup(_ => _.CreateClient("TruckService")).Returns(httpClient);
             _truckServiceClient = new TruckServiceClient(_mockHttpClientFactory.Object, _mockLogger.Object);
             
-            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId);
+            var (capacityKg, capacityM3) = await _truckServiceClient.GetTruckCapacityAsync(truckId, CancellationToken.None);
 
             Assert.Equal(0, capacityKg);
             Assert.Null(capacityM3);

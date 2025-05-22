@@ -7,6 +7,7 @@ using RouteService.API.Dtos.Routes;
 using RouteService.API.Services.Interfaces;
 using MessageContracts.Events.Booking;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -43,7 +44,7 @@ namespace RouteService.Tests.ConsumerTests
                 Timestamp = DateTime.UtcNow
             };
 
-            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(routeId, It.IsAny<UpdateRouteCapacityRequest>()))
+            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(routeId, It.IsAny<UpdateRouteCapacityRequest>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new RouteDto { Id = routeId }); // Return a dummy DTO
 
             var consumeContextMock = new Mock<ConsumeContext<BookingConfirmedEvent>>();
@@ -60,7 +61,7 @@ namespace RouteService.Tests.ConsumerTests
                     req.CapacityChangeKg == -bookedWeightKg &&
                     req.CapacityChangeM3 == -bookedVolumeM3 &&
                     req.Reason.Contains(bookingId.ToString())
-                )), Times.Once);
+                ), It.IsAny<CancellationToken>()), Times.Once);
 
             _mockLogger.Verify(
                 x => x.Log(
@@ -84,7 +85,7 @@ namespace RouteService.Tests.ConsumerTests
                 Timestamp = DateTime.UtcNow
             };
 
-            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(bookingConfirmedEvent.RouteId, It.IsAny<UpdateRouteCapacityRequest>()))
+            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(bookingConfirmedEvent.RouteId, It.IsAny<UpdateRouteCapacityRequest>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((RouteDto)null); // Simulate route not found or update failure
 
             var consumeContextMock = new Mock<ConsumeContext<BookingConfirmedEvent>>();
@@ -116,7 +117,7 @@ namespace RouteService.Tests.ConsumerTests
                 Timestamp = DateTime.UtcNow
             };
 
-            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(bookingConfirmedEvent.RouteId, It.IsAny<UpdateRouteCapacityRequest>()))
+            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(bookingConfirmedEvent.RouteId, It.IsAny<UpdateRouteCapacityRequest>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new ArgumentException("Test ArgumentException"));
 
             var consumeContextMock = new Mock<ConsumeContext<BookingConfirmedEvent>>();
@@ -149,7 +150,7 @@ namespace RouteService.Tests.ConsumerTests
             };
             var expectedException = new InvalidOperationException("Test generic exception");
 
-            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(bookingConfirmedEvent.RouteId, It.IsAny<UpdateRouteCapacityRequest>()))
+            _mockRouteService.Setup(s => s.UpdateRouteCapacityAsync(bookingConfirmedEvent.RouteId, It.IsAny<UpdateRouteCapacityRequest>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(expectedException);
 
             var consumeContextMock = new Mock<ConsumeContext<BookingConfirmedEvent>>();
