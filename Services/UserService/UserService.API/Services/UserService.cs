@@ -226,7 +226,15 @@ namespace UserService.API.Services
             // For now, we'll use ASP.NET Identity's phone token functionality
             var token = await _userManager.GenerateChangePhoneNumberTokenAsync(user, user.PhoneNumber ?? string.Empty);
 
-            // TODO: Send the code via SMS
+            // Event published for NotificationService to send SMS
+            await _eventPublisher.PublishAsync(new PhoneVerificationCodeGeneratedEvent
+            {
+                UserId = user.Id,
+                Email = user.Email ?? string.Empty,
+                Role = (MessageContracts.Enums.UserRole)user.Role,
+                PhoneNumber = user.PhoneNumber ?? string.Empty,
+                VerificationCode = token
+            });
 
             return token;
         }
