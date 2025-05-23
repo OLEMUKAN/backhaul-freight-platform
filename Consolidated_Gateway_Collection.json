@@ -1,0 +1,1651 @@
+{
+  "info": {
+    "_postman_id": "YOUR_COLLECTION_ID",
+    "name": "Full Microservices API Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "A consolidated Postman collection for testing all microservices through the API Gateway."
+  },
+  "item": [
+    {
+      "name": "User Service",
+      "description": "Requests related to user registration, authentication, and profile management.",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('userId');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "});",
+                  "",
+                  "// Store the userId for later use if needed",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.userId) {",
+                  "    pm.environment.set(\"user_id\", jsonData.userId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{test_password}}\",\n  \"name\": \"Test User\",\n  \"role\": 1\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/register",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "register"]
+            },
+            "description": "Registers a new standard user."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has new access and refresh tokens\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('accessToken');",
+                  "    pm.expect(jsonData).to.have.property('refreshToken');",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"access_token\", jsonData.accessToken);",
+                  "pm.environment.set(\"refresh_token\", jsonData.refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/refresh-token",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "refresh-token"]
+            },
+            "description": "Refreshes an access token using a refresh token."
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Clear tokens after logout",
+                  "pm.environment.unset(\"access_token\");",
+                  "pm.environment.unset(\"refresh_token\");"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/logout",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "logout"]
+            },
+            "description": "Logs out a user by invalidating their refresh token."
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/password/forgot",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "password", "forgot"]
+            },
+            "description": "Initiates the password reset process for a user."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK or 400 Bad Request\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"token\": \"{{reset_token}}\",\n  \"newPassword\": \"{{new_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/password/reset",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "password", "reset"]
+            },
+            "description": "Resets a user's password using a reset token."
+          }
+        },
+        {
+          "name": "Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/me",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Retrieves the profile of the currently authenticated user."
+          }
+        },
+        {
+          "name": "Update Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has updated user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "    pm.expect(jsonData.name).to.eql(\"Updated Test User\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Test User\",\n  \"phoneNumber\": \"+256700123456\",\n  \"profilePictureUrl\": \"https://example.com/profile.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/me",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Updates the profile of the currently authenticated user."
+          }
+        },
+        {
+          "name": "Get User By ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/{{user_id}}",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "{{user_id}}"]
+            },
+            "description": "Retrieves a specific user's profile by their ID."
+          }
+        },
+        {
+          "name": "Verify Email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK or 400 Bad Request\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{email_verification_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/verify/email",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "verify", "email"]
+            },
+            "description": "Verifies a user's email address using a verification token."
+          }
+        },
+        {
+          "name": "Generate Phone Verification Code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/verify/phone/generate",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "verify", "phone", "generate"]
+            },
+            "description": "Generates and sends a phone verification code to the user."
+          }
+        },
+        {
+          "name": "Verify Phone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK or 400 Bad Request\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{phone_verification_code}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/verify/phone",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "verify", "phone"]
+            },
+            "description": "Verifies a user's phone number using a verification code."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Truck Service",
+      "description": "Requests for managing truck profiles, including CRUD operations, verification, and document uploads.",
+      "item": [
+        {
+          "name": "Create Truck",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"truck_id\", jsonData.id);",
+                  "",
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains truck details\", function () {",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    pm.expect(jsonData.registrationNumber).to.exist;",
+                  "    pm.expect(jsonData.make).to.exist;",
+                  "    pm.expect(jsonData.model).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Truck belongs to authenticated owner\", function () {",
+                  "    pm.expect(jsonData.ownerId).to.equal(pm.environment.get(\"truck_owner_id\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"registrationNumber\": \"UBX-{{$randomInt}}\",\n  \"make\": \"Toyota\",\n  \"model\": \"Dyna\",\n  \"year\": 2020,\n  \"capacityKg\": 5000,\n  \"capacityM3\": 12.5,\n  \"type\": 2,\n  \"cargoAreaLengthM\": 5.2,\n  \"cargoAreaWidthM\": 2.4,\n  \"cargoAreaHeightM\": 2.1\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ]
+            },
+            "description": "Create a new truck profile for the authenticated truck owner."
+          }
+        },
+        {
+          "name": "Get Trucks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Each truck has required fields\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0].id).to.exist;",
+                  "        pm.expect(jsonData[0].registrationNumber).to.exist;",
+                  "        pm.expect(jsonData[0].make).to.exist;",
+                  "        pm.expect(jsonData[0].model).to.exist;",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "1",
+                  "description": "Filter by status (1=Active)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all trucks owned by the authenticated user. Can be filtered by status."
+          }
+        },
+        {
+          "name": "Get Trucks with Status Filter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"All trucks have active status\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    // Check if any trucks are returned",
+                  "    if (jsonData.length > 0) {",
+                  "        // Verify all trucks have status = 1 (Active)",
+                  "        jsonData.forEach(function(truck) {",
+                  "            pm.expect(truck.status).to.equal(1);",
+                  "        });",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks?status=1",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "1",
+                  "description": "Filter by status (1=Active)"
+                }
+              ]
+            },
+            "description": "Get all active trucks owned by the authenticated user."
+          }
+        },
+        {
+          "name": "Get Truck by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains truck details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"truck_id\"));",
+                  "    pm.expect(jsonData.registrationNumber).to.exist;",
+                  "    pm.expect(jsonData.make).to.exist;",
+                  "    pm.expect(jsonData.model).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/{{truck_id}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}"
+              ]
+            },
+            "description": "Get a specific truck by its ID. Requires `truck_id` to be set."
+          }
+        },
+        {
+          "name": "Update Truck",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains updated truck details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var requestBody = JSON.parse(pm.request.body.raw);",
+                  "    ",
+                  "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"truck_id\"));",
+                  "    ",
+                  "    // Verify the updated fields match what we sent",
+                  "    if (requestBody.make) {",
+                  "        pm.expect(jsonData.make).to.equal(requestBody.make);",
+                  "    }",
+                  "    if (requestBody.capacityKg) {",
+                  "        pm.expect(jsonData.capacityKg).to.equal(requestBody.capacityKg);",
+                  "    }",
+                  "    if (requestBody.status) {",
+                  "        pm.expect(jsonData.status).to.equal(requestBody.status);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"make\": \"Mitsubishi\",\n  \"capacityKg\": 6000,\n  \"capacityM3\": 14.0,\n  \"status\": 1\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/{{truck_id}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}"
+              ]
+            },
+            "description": "Update an existing truck. Requires `truck_id` to be set."
+          }
+        },
+        {
+          "name": "Verify Truck (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains verified truck details\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var requestBody = JSON.parse(pm.request.body.raw);",
+                  "    ",
+                  "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"truck_id\"));",
+                  "    pm.expect(jsonData.isVerified).to.equal(requestBody.isVerified);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isVerified\": true,\n  \"verificationNotes\": \"All documents verified and approved.\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/verify/{{truck_id}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "verify",
+                "{{truck_id}}"
+              ]
+            },
+            "description": "Admin verifies a truck. Requires `truck_id` and `admin_token`."
+          }
+        },
+        {
+          "name": "Upload Truck Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains document URL\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.url).to.exist;",
+                  "    pm.expect(jsonData.url).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/truck_document.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/{{truck_id}}/documents?documentType=LicensePlate",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "documentType",
+                  "value": "LicensePlate",
+                  "description": "Can be LicensePlate, RegistrationDocument, or Photo"
+                }
+              ]
+            },
+            "description": "Upload a document for a truck (e.g., license plate, registration). Requires `truck_id`. User must select a file."
+          }
+        },
+        {
+          "name": "Upload Truck Document - Missing Document Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/truck_document.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/{{truck_id}}/documents",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}",
+                "documents"
+              ]
+            },
+            "description": "Attempt to upload a document without specifying document type. Requires `truck_id`. User must select a file."
+          }
+        },
+        {
+          "name": "Upload Truck Document - No File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": []
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/{{truck_id}}/documents?documentType=LicensePlate",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "documentType",
+                  "value": "LicensePlate"
+                }
+              ]
+            },
+            "description": "Attempt to upload a document without providing a file. Requires `truck_id`."
+          }
+        },
+        {
+          "name": "Delete Truck",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/{{truck_id}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "{{truck_id}}"
+              ]
+            },
+            "description": "Delete/deactivate a truck. Requires `truck_id`."
+          }
+        },
+        {
+          "name": "Get Non-existent Truck",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "00000000-0000-0000-0000-000000000000"
+              ]
+            },
+            "description": "Attempt to get a truck with an ID that doesn't exist."
+          }
+        },
+        {
+          "name": "Create Truck (Invalid Data)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"registrationNumber\": \"\",\n  \"make\": \"\",\n  \"model\": \"\",\n  \"year\": 1800,\n  \"capacityKg\": -1000,\n  \"type\": 99\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ]
+            },
+            "description": "Attempt to create a truck with invalid data to check validation."
+          }
+        },
+        {
+          "name": "Access Without Authentication",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ]
+            },
+            "description": "Attempt to access an authenticated endpoint without authentication."
+          }
+        },
+        {
+          "name": "Verify Truck as Truck Owner (Forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isVerified\": true,\n  \"verificationNotes\": \"Self-verification attempt.\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/trucks/verify/{{truck_id}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "trucks",
+                "verify",
+                "{{truck_id}}"
+              ]
+            },
+            "description": "Attempt by a Truck Owner to verify a truck (should be forbidden, admin only)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Route Service",
+      "description": "Requests for creating, querying, and managing truck routes.",
+      "item": [
+        {
+          "name": "Create Route",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"route_id\", jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"truckId\": \"{{truck_id_example}}\",\n    \"isReturnLeg\": false,\n    \"originAddress\": \"City A, Country X\",\n    \"originCoordinates\": [10.123, 20.456],\n    \"destinationAddress\": \"City B, Country Y\",\n    \"destinationCoordinates\": [12.789, 22.321],\n    \"departureTime\": \"2024-01-01T10:00:00Z\",\n    \"arrivalTime\": \"2024-01-02T10:00:00Z\",\n    \"availableFrom\": \"2024-01-01T08:00:00Z\",\n    \"availableTo\": \"2024-01-02T12:00:00Z\",\n    \"notes\": \"Handle with care\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/routes",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "routes"
+              ]
+            },
+            "description": "Create a new route for a truck. Requires `truck_owner_token` and `truck_id_example` in body."
+          }
+        },
+        {
+          "name": "Get Routes (Filtered)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/routes?ownerId={{truck_owner_id}}&status=1&page=1&pageSize=10",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "routes"
+              ],
+              "query": [
+                {
+                  "key": "ownerId",
+                  "value": "{{truck_owner_id}}"
+                },
+                {
+                  "key": "status",
+                  "value": "1"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get a list of routes with optional filters. Uses general `access_token`."
+          }
+        },
+        {
+          "name": "Get Route by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK or 404 Not Found\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/routes/{{route_id}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "routes",
+                "{{route_id}}"
+              ]
+            },
+            "description": "Get a specific route by its ID. Requires `route_id` and general `access_token`."
+          }
+        },
+        {
+          "name": "Update Route",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"notes\": \"Updated notes: Fragile items on board.\",\n    \"status\": 2\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/routes/{{route_id}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "routes",
+                "{{route_id}}"
+              ]
+            },
+            "description": "Update an existing route. Requires `route_id` and `truck_owner_token`."
+          }
+        },
+        {
+          "name": "Cancel Route",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/routes/{{route_id}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "routes",
+                "{{route_id}}"
+              ]
+            },
+            "description": "Cancel a route. Requires `route_id` and `truck_owner_token`."
+          }
+        },
+        {
+          "name": "Update Route Capacity (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"bookingId\": \"{{booking_id_example}}\",\n    \"capacityChangeKg\": -500,\n    \"capacityChangeM3\": -2.5,\n    \"reason\": \"Cargo booked by Shipper Z\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/routes/{{route_id}}/capacity",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "routes",
+                "{{route_id}}",
+                "capacity"
+              ]
+            },
+            "description": "Update the capacity of a route (Admin operation). Requires `route_id` and `admin_token`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "TruckOwner Service",
+      "description": "Requests for aggregated data specific to truck owners.",
+      "item": [
+        {
+          "name": "Get Truck Owner Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response contains User and Trucks data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('User');",
+                  "    pm.expect(jsonData).to.have.property('Trucks');",
+                  "    if (jsonData.User) {",
+                  "        pm.expect(jsonData.User.id).to.eql(pm.environment.get(\"truck_owner_id\"));",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{truck_owner_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/truckowners/{{truck_owner_id}}/data",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "truckowners",
+                "{{truck_owner_id}}",
+                "data"
+              ]
+            },
+            "description": "Retrieves aggregated data (user profile and trucks list) for a specific truck owner. Requires `truck_owner_id` and `truck_owner_token`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Checks",
+      "description": "Requests for checking the health status of the API gateway.",
+      "item": [
+        {
+          "name": "API Gateway Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/health",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Checks the health status of the API Gateway."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "description": "Requests for user login (various roles) to obtain access tokens.",
+      "item": [
+        {
+          "name": "Login Test User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has access and refresh tokens\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('accessToken');",
+                  "    pm.expect(jsonData).to.have.property('refreshToken');",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"access_token\", jsonData.accessToken);",
+                  "pm.environment.set(\"refresh_token\", jsonData.refreshToken);",
+                  "if (jsonData.userId) {",
+                  "    pm.environment.set(\"user_id\", jsonData.userId);",
+                  "} else {",
+                  "    console.warn('User ID not found directly in login response body. Attempting to parse from token.');",
+                  "    const tokenParts = jsonData.accessToken.split('.');",
+                  "    if (tokenParts.length === 3) {",
+                  "      try {",
+                  "        const decodedPayload = JSON.parse(atob(tokenParts[1]));",
+                  "        if (decodedPayload.sub) {",
+                  "          pm.environment.set(\"user_id\", decodedPayload.sub);",
+                  "        }",
+                  "      } catch (e) {",
+                  "        console.error('Error decoding token for user_id: ', e);",
+                  "      }",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{test_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/login",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["api", "users", "login"]
+            },
+            "description": "Log in as a standard test user to get `access_token`, `refresh_token`, and `user_id`."
+          }
+        },
+        {
+          "name": "Login Truck Owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"truck_owner_token\", jsonData.accessToken);",
+                  "var tokenParts = jsonData.accessToken.split('.');",
+                  "if (tokenParts.length === 3) {",
+                  "    try {",
+                  "        var tokenPayload = JSON.parse(atob(tokenParts[1]));",
+                  "        var userId = tokenPayload.sub; ",
+                  "        pm.environment.set(\"truck_owner_id\", userId);",
+                  "    } catch (e) {",
+                  "        console.error(\"Error decoding truck_owner_token: \", e);",
+                  "    }",
+                  "}",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response contains token\", function () {",
+                  "    pm.expect(jsonData.accessToken).to.exist;",
+                  "});",
+                  "pm.test(\"Response contains JWT with userId\", function () {",
+                  "    var tokenPartsTest = jsonData.accessToken.split('.');",
+                  "    pm.expect(tokenPartsTest.length).to.be.at.least(2);",
+                  "    var payload = JSON.parse(atob(tokenPartsTest[1]));",
+                  "    pm.expect(payload.sub).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"{{truck_owner_email}}\",\n    \"password\": \"{{truck_owner_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/login",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "login"
+              ]
+            },
+            "description": "Log in as a truck owner to get `truck_owner_token` and `truck_owner_id`."
+          }
+        },
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"admin_token\", jsonData.accessToken);",
+                  "var tokenParts = jsonData.accessToken.split('.');",
+                  "if (tokenParts.length === 3) {",
+                  "    try {",
+                  "        var tokenPayload = JSON.parse(atob(tokenParts[1]));",
+                  "        var userId = tokenPayload.sub;",
+                  "        pm.environment.set(\"admin_id\", userId);",
+                  "    } catch (e) {",
+                  "        console.error(\"Error decoding admin_token: \", e);",
+                  "    }",
+                  "}",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response contains token\", function () {",
+                  "    pm.expect(jsonData.accessToken).to.exist;",
+                  "});",
+                  "pm.test(\"Response contains JWT with userId\", function () {",
+                  "    var tokenPartsTest = jsonData.accessToken.split('.');",
+                  "    pm.expect(tokenPartsTest.length).to.be.at.least(2);",
+                  "    var payload = JSON.parse(atob(tokenPartsTest[1]));",
+                  "    pm.expect(payload.sub).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/api/users/login",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "login"
+              ]
+            },
+            "description": "Log in as an admin user to get `admin_token` and `admin_id`."
+          }
+        }
+      ]
+    }
+  ]
+}
