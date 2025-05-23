@@ -44,10 +44,10 @@ namespace UserService.API.Events
                 // Update user metadata to indicate they have a verified truck
                 // This could be useful for showing verified status in the UI
                 // or for business logic that requires verified truck owners
-                user.HasVerifiedTruck = true;
+                user.HasVerifiedTruck = message.IsVerified; // Set based on the event
                 await _userManager.UpdateAsync(user);
                 
-                _logger.LogInformation("Updated user {UserId} with verified truck status", message.OwnerId);
+                _logger.LogInformation("Updated user {UserId} with HasVerifiedTruck = {IsVerified}", message.OwnerId, message.IsVerified);
             }
             catch (Exception ex)
             {
@@ -58,14 +58,14 @@ namespace UserService.API.Events
 
     public class BookingCompletedConsumer : IConsumer<BookingCompletedEvent>
     {
-        private readonly UserDbContext _dbContext;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<BookingCompletedConsumer> _logger;
 
         public BookingCompletedConsumer(
-            UserDbContext dbContext,
+            UserManager<ApplicationUser> userManager,
             ILogger<BookingCompletedConsumer> logger)
         {
-            _dbContext = dbContext;
+            _userManager = userManager;
             _logger = logger;
         }
 
@@ -76,15 +76,45 @@ namespace UserService.API.Events
 
             try
             {
-                // Logic to update user ratings based on the booking
-                // This would typically involve:
-                // 1. Finding the shipper and truck owner users
-                // 2. Updating their ratings based on the new rating values
-                // 3. Calculating new average ratings
-                // 4. Saving changes
+                // Update Truck Owner's Rating
+                if (message.TruckOwnerId != Guid.Empty && message.ShipperRatingGiven.HasValue && message.ShipperRatingGiven.Value >= 1 && message.ShipperRatingGiven.Value <= 5)
+                {
+                    var truckOwner = await _userManager.FindByIdAsync(message.TruckOwnerId.ToString());
+                    if (truckOwner != null)
+                    {
+                        double currentTotalRating = (truckOwner.Rating ?? 0.0) * truckOwner.NumberOfRatings;
+                        double newTotalRating = currentTotalRating + message.ShipperRatingGiven.Value;
+                        truckOwner.NumberOfRatings++;
+                        truckOwner.Rating = newTotalRating / truckOwner.NumberOfRatings;
+                        await _userManager.UpdateAsync(truckOwner);
+                        _logger.LogInformation("Updated rating for Truck Owner {TruckOwnerId}. New Rating: {Rating}, Total Ratings: {NumberOfRatings}",
+                            truckOwner.Id, truckOwner.Rating, truckOwner.NumberOfRatings);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Truck Owner with ID {TruckOwnerId} not found.", message.TruckOwnerId);
+                    }
+                }
 
-                _logger.LogInformation("Updated ratings for shipper {ShipperId} and truck owner {TruckOwnerId}", 
-                    message.ShipperId, message.TruckOwnerId);
+                // Update Shipper's Rating
+                if (message.ShipperId != Guid.Empty && message.TruckOwnerRatingGiven.HasValue && message.TruckOwnerRatingGiven.Value >= 1 && message.TruckOwnerRatingGiven.Value <= 5)
+                {
+                    var shipper = await _userManager.FindByIdAsync(message.ShipperId.ToString());
+                    if (shipper != null)
+                    {
+                        double currentTotalRating = (shipper.Rating ?? 0.0) * shipper.NumberOfRatings;
+                        double newTotalRating = currentTotalRating + message.TruckOwnerRatingGiven.Value;
+                        shipper.NumberOfRatings++;
+                        shipper.Rating = newTotalRating / shipper.NumberOfRatings;
+                        await _userManager.UpdateAsync(shipper);
+                        _logger.LogInformation("Updated rating for Shipper {ShipperId}. New Rating: {Rating}, Total Ratings: {NumberOfRatings}",
+                            shipper.Id, shipper.Rating, shipper.NumberOfRatings);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Shipper with ID {ShipperId} not found.", message.ShipperId);
+                    }
+                }
             }
             catch (Exception ex)
             {
