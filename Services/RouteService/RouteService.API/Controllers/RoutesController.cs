@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using RouteService.API.Models.DTOs;
 using RouteService.API.Services.Interfaces;
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace RouteService.API.Controllers
 {
@@ -21,17 +22,22 @@ namespace RouteService.API.Controllers
 
         private Guid GetOwnerIdFromClaims()
         {
-            var ownerIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            // Try multiple claim types
+            var ownerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? 
+                             User.FindFirst("sub")?.Value ??
+                             User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            
             if (string.IsNullOrEmpty(ownerIdClaim) || !Guid.TryParse(ownerIdClaim, out var ownerId))
             {
-                _logger.LogWarning("Owner ID claim is missing or invalid.");
+                _logger.LogWarning("Invalid user ID claim in token. Available claims: {Claims}", 
+                    string.Join(", ", User.Claims.Select(c => $"{c.Type}:{c.Value}")));
                 return Guid.Empty; // Or throw, but controller actions will return Unauthorized/Forbid
             }
             return ownerId;
         }
 
         [HttpPost]
-        [Authorize(Policy = "TruckOwner")]
+        [Authorize(Roles = "TruckOwner")]
         public async Task<IActionResult> CreateRoute([FromBody] CreateRouteRequest request, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
@@ -78,7 +84,7 @@ namespace RouteService.API.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Policy = "TruckOwner")]
+        [Authorize(Roles = "TruckOwner")]
         public async Task<IActionResult> UpdateRoute(Guid id, [FromBody] UpdateRouteRequest request, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
@@ -106,7 +112,7 @@ namespace RouteService.API.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Policy = "TruckOwner")]
+        [Authorize(Roles = "TruckOwner")]
         public async Task<IActionResult> CancelRoute(Guid id, CancellationToken cancellationToken)
         {
             var ownerId = GetOwnerIdFromClaims();
@@ -129,7 +135,7 @@ namespace RouteService.API.Controllers
         }
 
         [HttpPut("{id}/capacity")]
-        [Authorize(Policy = "Admin")] // Placeholder policy as discussed
+        [Authorize(Roles = "Admin")] // Placeholder policy as discussed
         public async Task<IActionResult> UpdateRouteCapacity(Guid id, [FromBody] UpdateRouteCapacityRequest request, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)

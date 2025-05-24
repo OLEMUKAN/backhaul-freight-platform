@@ -63,6 +63,7 @@ builder.Services.AddAuthentication(options =>
 {
     var key = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT:Key not configured");
     var securityKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(key));
+    securityKey.KeyId = "auth-token-key-1"; // Match the KeyId from UserService
     options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -72,8 +73,9 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = securityKey,
-        NameClaimType = System.Security.Claims.ClaimTypes.Name,
-        RoleClaimType = System.Security.Claims.ClaimTypes.Role
+        NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier,
+        RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+        ClockSkew = TimeSpan.FromMinutes(5)
     };
     
     // Event handlers for better debugging of JWT issues
@@ -112,14 +114,41 @@ builder.Services.AddControllers();
 // Add HTTP client factory for service communication
 builder.Services.AddHttpClient();
 
-// Configure HttpClientFactory to use proxy settings
-builder.Services.ConfigureHttpClientDefaults(httpClientBuilder =>
+// Configure HttpClient for service communication with proper timeout and error handling
+builder.Services.AddHttpClient("UserService", client =>
 {
-    httpClientBuilder.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-    {
-        UseProxy = false,
-        Proxy = null
-    });
+    client.BaseAddress = new Uri(builder.Configuration["Services:UserService:BaseUrl"] ?? "https://localhost:2999");
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "API-Gateway/1.0");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseProxy = false,
+    Proxy = null
+});
+
+builder.Services.AddHttpClient("TruckService", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Services:TruckService:BaseUrl"] ?? "https://localhost:7198");
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "API-Gateway/1.0");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseProxy = false,
+    Proxy = null
+});
+
+builder.Services.AddHttpClient("RouteService", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Services:RouteService:BaseUrl"] ?? "http://localhost:5003");
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "API-Gateway/1.0");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseProxy = false,
+    Proxy = null
 });
 
 // Swagger for API documentation and health check
@@ -164,9 +193,6 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-// Custom API Gateway exception handler
-app.UseMiddleware<ApiGateway.Middleware.ApiGatewayExceptionHandlerMiddleware>();
-
 // Request logging
 app.UseSerilogRequestLogging(options =>
 {
@@ -202,6 +228,9 @@ app.UseCors("CorsPolicy");
 // Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Custom API Gateway exception handler - moved after auth but before Ocelot
+app.UseMiddleware<ApiGateway.Middleware.ApiGatewayExceptionHandlerMiddleware>();
 
 // Map controllers for gateway-specific endpoints
 app.MapControllers();

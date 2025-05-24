@@ -68,6 +68,15 @@ try
     // Authentication
     builder.Services.AddJwtAuthentication(builder.Configuration);
     
+    // Authorization policies for truck operations
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy("TruckOwnerPolicy", policy =>
+            policy.RequireRole("TruckOwner"));
+        options.AddPolicy("AdminPolicy", policy =>
+            policy.RequireRole("Admin"));
+    });
+    
     // Configure MassTransit with RabbitMQ
     builder.Services.AddMassTransit(config =>
     {

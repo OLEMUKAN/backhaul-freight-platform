@@ -46,7 +46,7 @@ namespace RouteService.API.Services
             
             if (!request.AreTimesValid())
             {
-                _logger.LogWarning("Invalid times provided for route creation by Owner: {OwnerId}. Departure: {Departure}, Arrival: {Arrival}", ownerId, request.DepartureTime, request.ArrivalTime);
+                _logger.LogWarning("Invalid times provided for route creation by Owner: {OwnerId}. Departure: {Departure}, Arrival: {Arrival}", ownerId, request.ScheduledDeparture, request.ScheduledArrival);
                 throw new ArgumentException("Departure time must be before arrival time and both must be in the future.");
             }
             if (!request.AreCoordinatesValid())
@@ -282,14 +282,14 @@ namespace RouteService.API.Services
                 route.EstimatedDurationMinutes = (int)Math.Round((double)route.EstimatedDistanceKm / DefaultAverageSpeedKph * 60);
             }
               // Validate times if they were part of the request
-            if (request.DepartureTime.HasValue || request.ArrivalTime.HasValue) {
+            if (request.ScheduledDeparture != default || request.ScheduledArrival != default) {
                 // Create a temporary request DTO with potentially updated times to validate
                 var tempValidationRequest = new CreateRouteRequest { 
-                    DepartureTime = route.DepartureTime, 
-                    ArrivalTime = route.ArrivalTime 
+                    ScheduledDeparture = route.ScheduledDeparture, 
+                    ScheduledArrival = route.ScheduledArrival 
                 };
                 if (!tempValidationRequest.AreTimesValid()) {
-                     _logger.LogWarning("Invalid times provided for route update {RouteId}. Departure: {Departure}, Arrival: {Arrival}", id, route.DepartureTime, route.ArrivalTime);
+                     _logger.LogWarning("Invalid times provided for route update {RouteId}. Departure: {Departure}, Arrival: {Arrival}", id, route.ScheduledDeparture, route.ScheduledArrival);
                      throw new ArgumentException("Departure time must be before arrival time and both must be in the future.");
                 }
             }

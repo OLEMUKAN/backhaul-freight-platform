@@ -27,6 +27,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\SharedLibraries\MessageContracts\MessageContracts.csproj" />
     <ProjectReference Include="..\..\..\SharedLibraries\ServiceDiscovery\ServiceDiscovery.csproj" />
+    <ProjectReference Include="..\..\Common\SharedSettings\SharedSettings.csproj" />
   </ItemGroup>
 
 </Project>

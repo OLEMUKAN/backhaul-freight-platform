@@ -55,13 +55,13 @@ namespace RouteService.API.Models.DTOs
         /// Planned departure time
         /// </summary>
         [Required]
-        public DateTimeOffset DepartureTime { get; set; }
+        public DateTimeOffset ScheduledDeparture { get; set; }
         
         /// <summary>
         /// Planned arrival time
         /// </summary>
         [Required]
-        public DateTimeOffset ArrivalTime { get; set; }
+        public DateTimeOffset ScheduledArrival { get; set; }
         
         /// <summary>
         /// Start of time window when cargo can be loaded
@@ -81,23 +81,23 @@ namespace RouteService.API.Models.DTOs
         public string? Notes { get; set; }
 
         /// <summary>
-        /// Alias for DepartureTime
+        /// Alias for ScheduledDeparture
         /// </summary>
         [JsonIgnore]
-        public DateTimeOffset ScheduledDeparture
+        public DateTimeOffset DepartureTime
         {
-            get => DepartureTime;
-            set => DepartureTime = value;
+            get => ScheduledDeparture;
+            set => ScheduledDeparture = value;
         }
 
         /// <summary>
-        /// Alias for ArrivalTime
+        /// Alias for ScheduledArrival
         /// </summary>
         [JsonIgnore]
-        public DateTimeOffset ScheduledArrival
+        public DateTimeOffset ArrivalTime
         {
-            get => ArrivalTime;
-            set => ArrivalTime = value;
+            get => ScheduledArrival;
+            set => ScheduledArrival = value;
         }
         
         /// <summary>
@@ -105,9 +105,9 @@ namespace RouteService.API.Models.DTOs
         /// </summary>
         public bool AreTimesValid()
         {
-            return DepartureTime < ArrivalTime &&
-                   AvailableFrom <= DepartureTime &&
-                   ArrivalTime <= AvailableTo;
+            return ScheduledDeparture < ScheduledArrival &&
+                   AvailableFrom <= ScheduledDeparture &&
+                   ScheduledArrival <= AvailableTo;
         }
         
         /// <summary>

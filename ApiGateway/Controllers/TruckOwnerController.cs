@@ -17,7 +17,7 @@ namespace ApiGateway.Controllers
             IConfiguration configuration,
             ILogger<TruckOwnerController> logger)
         {
-            _httpClient = httpClientFactory.CreateClient();
+            _httpClient = httpClientFactory.CreateClient("UserService");
             _configuration = configuration;
             _logger = logger;
         }

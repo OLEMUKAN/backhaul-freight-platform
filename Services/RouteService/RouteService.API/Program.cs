@@ -11,6 +11,7 @@ using RouteService.API.Services.Interfaces; // For IRouteService
 using RouteService.API; // For MappingProfile
 using RouteService.API.Consumers; // For MassTransit Consumers
 using RouteService.API.Middleware; // For GlobalExceptionHandlerMiddleware
+using SharedSettings; // Add this import for shared JWT settings
 
 namespace RouteService.API;
 
@@ -78,25 +79,7 @@ builder.Services.AddDbContext<RouteDbContext>(options =>
 );
 
 // Configure JWT Authentication
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.SaveToken = true;
-    options.RequireHttpsMetadata = false;
-    options.TokenValidationParameters = new TokenValidationParameters()
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidAudience = builder.Configuration["JWT:ValidAudience"],
-        ValidIssuer = builder.Configuration["JWT:ValidIssuer"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT:Secret"]))
-    };
-});
+builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // Configure Authorization
 builder.Services.AddAuthorization(options =>

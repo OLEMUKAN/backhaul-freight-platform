@@ -13,8 +13,9 @@ namespace UserService.API.Models
         public bool IsPhoneConfirmed { get; set; }
         
         // Rating information
-        public double? Rating { get; set; }
-        public int NumberOfRatings { get; set; } = 0;
+        public decimal? Rating { get; set; }
+        public int RatingCount { get; set; } = 0;
+        public int RatingTotal { get; set; } = 0;
         
         public DateTimeOffset RegistrationDate { get; set; }
         public DateTimeOffset? LastLoginDate { get; set; }

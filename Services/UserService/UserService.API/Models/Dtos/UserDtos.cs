@@ -84,4 +84,4 @@ namespace UserService.API.Models.Dtos
             ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character")]
         public string NewPassword { get; set; } = string.Empty; 
     }
-} 
+}

@@ -82,13 +82,12 @@ namespace UserService.API.Events
                     var truckOwner = await _userManager.FindByIdAsync(message.TruckOwnerId.ToString());
                     if (truckOwner != null)
                     {
-                        double currentTotalRating = (truckOwner.Rating ?? 0.0) * truckOwner.NumberOfRatings;
-                        double newTotalRating = currentTotalRating + message.ShipperRatingGiven.Value;
-                        truckOwner.NumberOfRatings++;
-                        truckOwner.Rating = newTotalRating / truckOwner.NumberOfRatings;
+                        truckOwner.RatingTotal += message.ShipperRatingGiven.Value;
+                        truckOwner.RatingCount++;
+                        truckOwner.Rating = (decimal)truckOwner.RatingTotal / truckOwner.RatingCount;
                         await _userManager.UpdateAsync(truckOwner);
-                        _logger.LogInformation("Updated rating for Truck Owner {TruckOwnerId}. New Rating: {Rating}, Total Ratings: {NumberOfRatings}",
-                            truckOwner.Id, truckOwner.Rating, truckOwner.NumberOfRatings);
+                        _logger.LogInformation("Updated rating for Truck Owner {TruckOwnerId}. New Rating: {Rating}, Total Ratings: {RatingCount}",
+                            truckOwner.Id, truckOwner.Rating, truckOwner.RatingCount);
                     }
                     else
                     {
@@ -102,13 +101,12 @@ namespace UserService.API.Events
                     var shipper = await _userManager.FindByIdAsync(message.ShipperId.ToString());
                     if (shipper != null)
                     {
-                        double currentTotalRating = (shipper.Rating ?? 0.0) * shipper.NumberOfRatings;
-                        double newTotalRating = currentTotalRating + message.TruckOwnerRatingGiven.Value;
-                        shipper.NumberOfRatings++;
-                        shipper.Rating = newTotalRating / shipper.NumberOfRatings;
+                        shipper.RatingTotal += message.TruckOwnerRatingGiven.Value;
+                        shipper.RatingCount++;
+                        shipper.Rating = (decimal)shipper.RatingTotal / shipper.RatingCount;
                         await _userManager.UpdateAsync(shipper);
-                        _logger.LogInformation("Updated rating for Shipper {ShipperId}. New Rating: {Rating}, Total Ratings: {NumberOfRatings}",
-                            shipper.Id, shipper.Rating, shipper.NumberOfRatings);
+                        _logger.LogInformation("Updated rating for Shipper {ShipperId}. New Rating: {Rating}, Total Ratings: {RatingCount}",
+                            shipper.Id, shipper.Rating, shipper.RatingCount);
                     }
                     else
                     {

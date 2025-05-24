@@ -29,8 +29,11 @@ namespace ApiGateway.Middleware
             {
                 await _next(context);
                 
-                // Handle non-success responses that weren't caught as exceptions
-                if (context.Response.StatusCode >= 400)
+                // Only handle non-success responses if the response hasn't started
+                // and there's no content length header (indicating no response body)
+                if (context.Response.StatusCode >= 400 && 
+                    !context.Response.HasStarted && 
+                    !context.Response.Headers.ContainsKey("Content-Length"))
                 {
                     await HandleNonSuccessResponseAsync(context);
                 }
@@ -38,18 +41,19 @@ namespace ApiGateway.Middleware
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unhandled exception in API Gateway");
-                await HandleExceptionAsync(context, ex);
+                if (!context.Response.HasStarted)
+                {
+                    await HandleExceptionAsync(context, ex);
+                }
+                else
+                {
+                    _logger.LogWarning("Cannot handle exception: response has already started.");
+                }
             }
         }
 
         private async Task HandleNonSuccessResponseAsync(HttpContext context)
         {
-            if (context.Response.HasStarted)
-            {
-                // Cannot modify the response if it has already started
-                _logger.LogWarning("Cannot handle non-success response: response has already started.");
-                return;
-            }
             context.Response.ContentType = "application/json";
             
             var statusCode = context.Response.StatusCode;
@@ -71,17 +75,15 @@ namespace ApiGateway.Middleware
                 TraceId = context.TraceIdentifier
             });
 
+            // Clear any existing headers that might affect the response
+            context.Response.Headers.Clear();
+            context.Response.ContentType = "application/json";
+            
             await context.Response.WriteAsync(result);
         }
 
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
-            if (context.Response.HasStarted)
-            {
-                // Cannot modify the response if it has already started
-                _logger.LogWarning("Cannot handle exception: response has already started.");
-                return;
-            }
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
@@ -95,6 +97,10 @@ namespace ApiGateway.Middleware
                 Details = _env.IsDevelopment() ? exception.ToString() : null
             };
 
+            // Clear any existing headers that might affect the response
+            context.Response.Headers.Clear();
+            context.Response.ContentType = "application/json";
+            
             await context.Response.WriteAsync(JsonSerializer.Serialize(response));
         }
     }

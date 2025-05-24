@@ -179,6 +179,12 @@ namespace UserService.API.Services
 
         private async Task<LoginResponse> GenerateTokensAsync(ApplicationUser user)
         {
+            // Check if user is active
+            if (user.Status != UserStatus.Active)
+            {
+                throw new UnauthorizedAccessException("User account is not active. Please verify your email or contact support.");
+            }
+            
             // Generate JWT Token
             var jwtId = Guid.NewGuid().ToString();
             var claims = new List<Claim>
@@ -186,25 +192,22 @@ namespace UserService.API.Services
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, jwtId),
-                // Convert Role from integer to string name and use standard ClaimTypes.Role
-                new Claim(ClaimTypes.Role, GetRoleName(user.Role)),
-                // Add numeric role value for systems that expect it
-                new Claim("role", ((int)user.Role).ToString()),
-                // Add string role name for systems that expect it
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                // Fix role claims - use ClaimTypes.Role for the main role claim
+                new Claim(ClaimTypes.Role, user.Role.ToString()),
+                // Add string role name for compatibility
                 new Claim("roleName", user.Role.ToString()),
                 new Claim("name", user.Name ?? string.Empty)
             };
 
             var keyBytes = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));
             var securityKey = new SymmetricSecurityKey(keyBytes);
-            // Assign a key ID for the token
             securityKey.KeyId = "auth-token-key-1";
             var signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
             
             var tokenExpiration = DateTime.UtcNow.AddMinutes(
-                int.Parse(_configuration["Jwt:ExpiryMinutes"] ?? "60"));
+                int.Parse(_configuration["Jwt:DurationInMinutes"] ?? "60"));
             
-            // Create JWT Security Token Descriptor
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Issuer = _configuration["Jwt:Issuer"],
@@ -215,7 +218,6 @@ namespace UserService.API.Services
                 SigningCredentials = signingCredentials
             };
             
-            // Create and write the token
             var tokenHandler = new JwtSecurityTokenHandler();
             var token = tokenHandler.CreateToken(tokenDescriptor);
             var accessToken = tokenHandler.WriteToken(token);

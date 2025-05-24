@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.IdentityModel.Tokens.Jwt;
 using TruckService.API.Models.Dtos;
 using TruckService.API.Services;
 
@@ -264,18 +265,15 @@ namespace TruckService.API.Controllers
           // Helper methods for getting user identity information
         private Guid GetCurrentUserId()
         {
-            // Try standard claim types first
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            
-            // If not found, try alternate claim names
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                userIdClaim = User.FindFirst("sub")?.Value;
-            }
+            // Try multiple claim types
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? 
+                             User.FindFirst("sub")?.Value ??
+                             User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             {
-                _logger.LogWarning("Invalid user ID claim in token: {Claims}", string.Join(", ", User.Claims.Select(c => $"{c.Type}:{c.Value}")));
+                _logger.LogWarning("Invalid user ID claim in token. Available claims: {Claims}", 
+                    string.Join(", ", User.Claims.Select(c => $"{c.Type}:{c.Value}")));
                 throw new InvalidOperationException("User ID claim is missing or invalid");
             }
             
@@ -284,16 +282,12 @@ namespace TruckService.API.Controllers
         
         private string GetCurrentUserRole()
         {
-            // Try standard role claim
-            var role = User.FindFirst(ClaimTypes.Role)?.Value;
-            
-            // If not found, try alternate claim names
-            if (string.IsNullOrEmpty(role))
-            {
-                role = User.FindFirst("role")?.Value;
-            }
+            // Try multiple role claim types
+            var role = User.FindFirst(ClaimTypes.Role)?.Value ??
+                      User.FindFirst("role")?.Value ??
+                      User.FindFirst("roleName")?.Value;
             
             return role ?? "Unknown";
         }
     }
-} 
+}

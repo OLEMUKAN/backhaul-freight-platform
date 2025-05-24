@@ -40,7 +40,8 @@ namespace SharedSettings
                     RoleClaimType = ClaimTypes.Role,
                     RequireSignedTokens = true,
                     ValidateActor = false,
-                    ValidateTokenReplay = false
+                    ValidateTokenReplay = false,
+                    ClockSkew = TimeSpan.FromMinutes(5) // Add clock skew tolerance
                 };
                 
                 // Add event handlers for better debugging and logging

@@ -328,7 +328,7 @@ namespace UserService.API.Services
                 Role = user.Role,
                 IsEmailConfirmed = user.IsEmailConfirmed,
                 IsPhoneConfirmed = user.IsPhoneConfirmed,
-                Rating = user.Rating,
+                Rating = (decimal?)user.Rating,
                 RegistrationDate = user.RegistrationDate,
                 LastLoginDate = user.LastLoginDate,
                 Status = user.Status,
